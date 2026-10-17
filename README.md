@@ -16,7 +16,9 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 - Parametri URI supportati: `user`, `password`, `sslmode`, `channel_binding`, `application_name`. Parametri sconosciuti sono rifiutati esplicitamente; socket Unix, host multipli, certificati client e CA private importate non sono ancora supportati.
 - Senza `sslmode` viene usato **verify-full**, con CA di sistema Android e verifica del nome host. La scelta TLS esplicita nel modulo prevale sulla URI. `require` cifra ma non verifica il certificato; `prefer`/`allow` seguono il comportamento pgJDBC e possono usare connessioni non cifrate. `disable` va scelto per un database senza TLS su una rete fidata.
 - Autenticazione PostgreSQL con password, MD5 e SCRAM-SHA-256 tramite pgJDBC. Kerberos/GSS/SSPI non sono supportati su Android.
-- Schema live, completamento CodeMirror, query o selezione SQL, script con più risultati, tabelle e salvataggio CSV tramite selettore Android. La demo usa dati simulati.
+- Interfaccia mobile con tre viste: **Tabelle, SQL e Risultati**, raggiungibili dalla barra inferiore. Nessuna griglia da scorrere in orizzontale: ogni record si espande con tutti i campi in verticale, anche per testi, JSON e nomi di colonna lunghi.
+- Schema live con ricerca e preparazione di SELECT, completamento CodeMirror e query o selezione SQL. L’editor va a capo automaticamente. La demo usa dati simulati.
+- Risultati a pagine di 20 record e ricerca su tutti i record caricati. Gli script con più risultati hanno un selettore dedicato. Il CSV esporta il risultato selezionato e filtrato, comprese tutte le sue pagine, tramite selettore Android.
 - Timeout connessione 10 s, query 15 s, socket 20 s. Sessione inattiva chiusa dopo 30 minuti e alla distruzione dell'Activity. La rotazione ricrea la sessione: è necessario riconnettersi.
 - Ogni risultato visualizza al massimo 1.000 righe; le celle oltre 64 Ki caratteri e i risultati oltre 2 milioni di caratteri sono troncati e segnalati. Lo schema è limitato a 10.000 colonne. Usa `LIMIT` per query molto grandi. I valori sono restituiti come testo per conservare precisione numerica e date.
 
