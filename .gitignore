@@ -2,3 +2,10 @@ node_modules/
 dist/
 .env
 *.log
+
+dist-android/
+android/.gradle/
+android/local.properties
+android/**/build/
+.tooling/
+*.apk

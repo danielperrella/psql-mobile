@@ -1,1 +1,24 @@
-{"name":"psql-mobile","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build --base=./","gateway":"node server/index.js","test":"node --test server/*.test.js"},"dependencies":{"@codemirror/autocomplete":"^6.18.0","@codemirror/lang-sql":"^6.9.0","@codemirror/theme-one-dark":"^6.1.2","codemirror":"^6.0.1","express":"^5.1.0","pg":"^8.16.0"},"devDependencies":{"vite":"^6.3.0"}}
+{
+  "name": "psql-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build --base=./",
+    "gateway": "node server/index.js",
+    "test": "node --test server/*.test.js src/*.test.js",
+    "build:android": "vite build --mode android --base=./ --outDir dist-android"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/lang-sql": "^6.9.0",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "codemirror": "^6.0.1",
+    "express": "^5.1.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.0"
+  }
+}

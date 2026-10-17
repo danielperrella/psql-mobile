@@ -1,4 +1,4 @@
-name: Build and publish PWA
+name: Build Android app and publish download
 on:
   push:
     branches: [main]
@@ -22,11 +22,29 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
       - run: npm test
+      - run: npm run build:android
+      - name: Test and build installable Android APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest lintDebug assembleDebug
       - run: npm run build
+      - name: Include Android APK in download page
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk dist/psql-mobile.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: psql-mobile-android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
       - name: Package downloadable app and gateway
-        run: zip -r dist/psql-mobile.zip src public server index.html package.json package-lock.json README.md Dockerfile .env.example .github
+        run: zip -r dist/psql-mobile.zip src public server android index.html vite.config.js package.json package-lock.json README.md Dockerfile .env.example .github -x 'android/.gradle/*' 'android/app/build/*' 'android/local.properties'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
