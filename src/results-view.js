@@ -24,6 +24,12 @@ export function recordTitle(row, fields) {
     || fields.find(meaningful) || fields[0];
   return {field, text: field ? displayValue(row[field]) : 'Record'};
 }
+export function availableRelations(result, row, field) {
+  if (result?.truncated) return [];
+  return (result?.relations || []).filter(relation => relation.fields?.includes(field)
+    && relation.fields.length === relation.targetColumns?.length
+    && relation.fields.every(key => Object.hasOwn(row, key) && row[key] !== null && row[key] !== undefined));
+}
 function node(tag, text, className) {
   const element = document.createElement(tag);
   if (text !== undefined) element.textContent = text;
@@ -36,9 +42,10 @@ function shortened(text, limit) {
 }
 
 export class ResultsView {
-  constructor(root, onChange = () => {}) {
+  constructor(root, onChange = () => {}, onNavigate = () => {}) {
     this.root = root;
     this.onChange = onChange;
+    this.onNavigate = onNavigate;
     this.results = [];
     this.selected = 0;
     this.page = 0;
@@ -48,6 +55,7 @@ export class ResultsView {
         <label class="result-search-label">Cerca nei record caricati<input id="resultSearch" type="search" placeholder="Valore in qualsiasi campo" autocomplete="off"></label>
       </div>
       <p class="result-limit" hidden>Risultato parziale: alcuni dati sono stati limitati.</p>
+      <p class="relation-warning" hidden></p>
       <div class="result-pagination" hidden><button id="previousPage" class="secondary" aria-label="Pagina precedente">Precedenti</button><span id="pageRange" aria-live="polite"></span><button id="nextPage" class="secondary" aria-label="Pagina successiva">Successivi</button></div>
       <div class="record-list"></div>`;
     this.search = root.querySelector('#resultSearch');
@@ -85,6 +93,9 @@ export class ResultsView {
     this.root.querySelector('.result-picker-label').hidden = this.results.length < 2;
     this.root.querySelector('.result-search-label').hidden = !data.fields.length;
     this.root.querySelector('.result-limit').hidden = !result?.truncated;
+    const warning = this.root.querySelector('.relation-warning');
+    warning.hidden = !result?.relationWarning;
+    warning.textContent = result?.relationWarning || '';
     this.root.querySelector('.result-pagination').hidden = !data.rows.length;
     this.root.querySelector('#previousPage').disabled = paged.page === 0;
     this.root.querySelector('#nextPage').disabled = paged.page === paged.pages - 1;
@@ -93,7 +104,7 @@ export class ResultsView {
     if (!result) this.empty('I tuoi record, leggibili.', 'Esegui una query: ogni riga si aprirà con tutti i campi in verticale.');
     else if (!data.fields.length) this.empty('Comando eseguito', `${result.command} · ${result.rowCount ?? 0} righe interessate.`);
     else if (!data.rows.length) this.empty(this.search.value ? 'Nessuna corrispondenza' : 'Nessun record restituito', this.search.value ? 'Cambia la ricerca per ritrovare i record caricati.' : 'La query è stata eseguita e non ha restituito righe.');
-    else paged.rows.forEach((row, index) => this.list.append(this.record(row, data.fields, paged.from + index)));
+    else paged.rows.forEach((row, index) => this.list.append(this.record(row, data.fields, paged.from + index, result)));
     this.onChange({count: data.rows.length, canExport: !!data.fields.length, results: this.results});
   }
   empty(title, text) {
@@ -103,7 +114,7 @@ export class ResultsView {
     empty.append(mark, node('h3', title), node('p', text));
     this.list.append(empty);
   }
-  record(row, fields, number) {
+  record(row, fields, number, result = {}) {
     const details = node('details', undefined, 'record');
     const summary = node('summary', undefined, 'record-summary');
     const title = recordTitle(row, fields);
@@ -126,6 +137,16 @@ export class ResultsView {
       const value = node('dd');
       const content = node('pre', displayValue(row[field]), row[field] == null ? 'null-value' : '');
       value.append(content);
+      for (const relation of availableRelations(result, row, field)) {
+        const link = node('button', undefined, 'relation-link');
+        const arrow = node('span'); arrow.innerHTML = icon('related');
+        link.append(arrow, node('span', 'Apri ' + relation.targetTable));
+        link.title = relation.targetSchema + '.' + relation.targetTable;
+        link.onclick = () => this.onNavigate({relationId: relation.id,
+          values: relation.fields.map(key => String(row[key])),
+          targetSchema: relation.targetSchema, targetTable: relation.targetTable});
+        value.append(link);
+      }
       pair.append(node('dt', field), value);
       values.append(pair);
     }

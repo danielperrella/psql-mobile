@@ -4,7 +4,11 @@ import {validateConnectionString} from './connection-string.js';
 import {appShell} from './app-shell.js';
 import {ResultsView} from './results-view.js';
 import {icon} from './icons.js';
-const version='1.2.0';
+import {ConnectionHome} from './connection-home.js';
+import {AppUpdates} from './app-updates.js';
+import {RelatedRecordView} from './related-record.js';
+import {demoResults,demoSchema,demoRelated} from './demo.js';
+const version='1.3.0';
 const nativeAndroid=import.meta.env.MODE==='android';
 const androidApi=nativeAndroid?nativeTransport(window.PsqlNative):null;
 import {EditorView,basicSetup} from 'codemirror';
@@ -15,7 +19,27 @@ import {csv} from '../server/core.js';
 const $=s=>document.querySelector(s);let session,conn,schema=[],installPrompt;const dialect=new Compartment();
 $('#app').innerHTML=appShell(nativeAndroid,version);
 const editor=new EditorView({doc:'SELECT 1 AS risultato;',extensions:[basicSetup,oneDark,dialect.of(sql({dialect:PostgreSQL})),EditorView.lineWrapping,EditorView.domEventHandlers({keydown(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run();return true}}})],parent:$('#editor')});
-let activeView='query';
+let activeView='query',homeVisible=true,currentProfileId=null,editingProfileId=null;
+const connectionHome=new ConnectionHome($('#connectionHome'),{connect:profile=>connect({profileId:profile.id}),edit:editConnection,remove:removeConnection});
+async function refreshConnections(){
+  if(!nativeAndroid)return;
+  try{connectionHome.render(await androidApi('/connections/list'),currentProfileId);controls()}catch(error){connectionHome.error(error.message)}
+}
+function showHome(show=true){
+  homeVisible=show;$('#connectionHome').hidden=!show;$('#workspace').hidden=show;document.querySelector('.mobile-nav').hidden=show;
+  $('#resumeConnection').hidden=!session&&!demo;$('#connectionButton span').textContent=show?'Nuova':'Connessioni';
+  if(show){relatedView.close();refreshConnections()}else{setView(activeView,false);editor.requestMeasure()}window.scrollTo({top:0,behavior:'auto'});
+}
+function newConnection(){
+  if(busy)return;editingProfileId=null;$('#connectForm').reset();setMode('uri');validateUriField();$('#connectError').textContent='';$('#dialog .dialog-title h2').textContent='Nuova connessione';$('#dialog').showModal();
+}
+async function editConnection(profile){
+  if(busy)return;
+  try{const saved=await androidApi('/connections/read',{profileId:profile.id});newConnection();editingProfileId=profile.id;const form=$('#connectForm');form.elements.name.value=saved.name;setMode(saved.config.connectionString?'uri':'fields');for(const [key,value]of Object.entries(saved.config))if(form.elements[key])form.elements[key].value=value;validateUriField();$('#dialog .dialog-title h2').textContent='Modifica connessione'}catch(error){connectionHome.error(error.message)}
+}
+async function removeConnection(profile){
+  try{await androidApi('/connections/remove',{profileId:profile.id});if(currentProfileId===profile.id)currentProfileId=null;await refreshConnections()}catch(error){connectionHome.error(error.message)}
+}
 const narrow=window.matchMedia('(max-width: 820px)');
 function setView(view,scroll=true){
   activeView=view;
@@ -30,13 +54,14 @@ const resultsView=new ResultsView($('#results'),({count,canExport,results})=>{
   $('#count').textContent=count;$('#export').disabled=!canExport;
   const loaded=results.reduce((sum,result)=>sum+result.rows.length,0);
   $('#navResultCount').textContent=loaded;$('#navResultCount').hidden=loaded===0;
-});
+},reference=>relatedView.open(reference));
+const relatedView=new RelatedRecordView($('#relatedDialog'),reference=>demo?demoRelated(reference):api('/related',{relationId:reference.relationId,values:reference.values}),(row,fields,number,result)=>resultsView.record(row,fields,number,result));
 function controls(){
   $('#run').disabled=busy||(!session&&!demo);$('#disconnect').disabled=busy||(!session&&!demo);
-  $('#connectionButton').disabled=busy;$('#refresh').disabled=busy||!session;
+  $('#connectionButton').disabled=busy;$('#refresh').disabled=busy||!session;$('#connectSubmit').disabled=busy;$('#addConnection').disabled=busy;connectionHome.setBusy(busy);
 }
 function connectionState(){
-  $('#connectionButton span').textContent=session||demo?'Cambia':'Connetti';
+  $('#connectionButton span').textContent=homeVisible?'Nuova':'Connessioni';$('#resumeConnection').hidden=!session&&!demo;
   $('#demoWelcome').hidden=!!session||demo;controls();
 }
 let noticeTimer;
@@ -67,7 +92,7 @@ function renderTree(){
   if(!tree.children.length){const empty=element('div',undefined,'empty-state');empty.append(element('h3',filter?'Nessuna tabella trovata':'Il tuo schema, qui.'),element('p',filter?'Prova un altro nome di tabella o colonna.':session||demo?'Non ci sono tabelle accessibili in questo schema.':'Connetti un database per esplorare tabelle e colonne.'));tree.append(empty)}
 }
 let demo=false,busy=false;
-function renderResults(results){resultsView.setResults(results)}
+function renderResults(results){relatedView.close();resultsView.setResults(results)}
 async function run(){
   if(busy||(!session&&!demo))return;busy=true;controls();editor.contentDOM.blur();feedback('Query in esecuzione…');
   try{
@@ -90,29 +115,48 @@ function validateUriField(force=false){
 uriInput.addEventListener('input',()=>{validateUriField();$('#connectError').textContent=''});
 uriInput.addEventListener('blur',()=>validateUriField(true));
 uriInput.addEventListener('invalid',e=>{e.preventDefault();validateUriField(true);uriInput.focus()});
-$('#run').onclick=run;$('#filter').oninput=renderTree;$('#connectionButton').onclick=()=>$('#dialog').showModal();$('#close').onclick=()=>$('#dialog').close();let mode='uri';function setMode(next){mode=next;uriInput.disabled=next!=='uri';$('#uriFields').hidden=next!=='uri';$('#separateFields').hidden=next!=='fields';$('#uriTab').classList.toggle('selected',next==='uri');$('#fieldsTab').classList.toggle('selected',next==='fields')}$('#uriTab').onclick=()=>setMode('uri');$('#fieldsTab').onclick=()=>setMode('fields');
-$('#connectForm').onsubmit=async e=>{e.preventDefault();$('#connectError').textContent='';const validated=mode==='uri'?validateUriField(true):null;if(validated&&!validated.valid){uriInput.focus();return}$('#connectSubmit').disabled=true;let newSession;const previous={conn,session};try{const data=Object.fromEntries(new FormData(e.target));if(nativeAndroid){conn={native:true}}else{const url=new URL(data.gateway);if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)))throw new Error('Usa HTTPS per il gateway remoto');conn={gateway:data.gateway.replace(/\/$/,''),token:data.token}}const config=mode==='uri'?{connectionString:validated.uri,ssl:data.ssl}:Object.fromEntries(['host','port','database','user','password','ssl'].map(k=>[k,data[k]]));const response=await api('/connect',config);session=response.session;newSession=session;schema=await api('/schema');if(previous.session){const current={conn,session};conn=previous.conn;session=previous.session;await api('/disconnect').catch(()=>{});({conn,session}=current)}demo=false;updateSchema();$('#status').textContent='Connesso';$('#status').classList.add('connected');$('#disconnect').disabled=false;$('#run').disabled=false;$('#dialog').close();e.target.reset();validateUriField();renderResults([]);feedback('Connessione attiva. Scegli una tabella o scrivi una query.');connectionState();setView('schema')}catch(err){if(newSession)await api('/disconnect').catch(()=>{});conn=previous.conn;session=previous.session;$('#connectError').textContent=err.message}finally{$('#connectSubmit').disabled=false}};
-$('#refresh').onclick=async()=>{if(!session)return;try{schema=await api('/schema');updateSchema();feedback('Schema aggiornato')}catch(e){feedback(e.message,true)}};
-$('#disconnect').onclick=async()=>{try{await api('/disconnect')}catch{}session=null;conn=null;schema=[];demo=false;updateSchema();renderResults([]);$('#run').disabled=true;$('#disconnect').disabled=true;$('#status').textContent='Non connesso';$('#status').classList.remove('connected');feedback('Disconnesso. Credenziali rimosse dalla memoria.');connectionState()};
-function demoResults(){
-  const names=['Elena Rossi','Luca Bianchi','Sofia Conti','Marco Moretti','Giulia Romano','Andrea Ferri'];
-  const rows=Array.from({length:24},(_,index)=>({
-    id:String(1041+index),cliente:names[index%names.length],stato:['Pagato','In preparazione','Spedito'][index%3],totale:(48+index*7.5).toFixed(2)+' EUR',
-    email:['elena.rossi','luca.bianchi','sofia.conti','marco.moretti','giulia.romano','andrea.ferri'][index%names.length]+'@example.com',
-    note:index===0?'Consegna al punto di ritiro. Il riferimento completo resta leggibile anche su uno schermo piccolo.':null,
-    riferimento_esterno_del_pagamento_utilizzato_dal_provider:index===0?'pg_'+'a18f904bc7'.repeat(12):'ordine-'+(1041+index),
-    metadata:{canale:index%2?'app':'web',localita:'Milano',indirizzo:'Via di esempio 12'}
-  }));return [{command:'DEMO',rowCount:rows.length,fields:Object.keys(rows[0]),rows}];
+$('#run').onclick=run;$('#filter').oninput=renderTree;$('#connectionButton').onclick=()=>homeVisible?newConnection():showHome();$('#addConnection').onclick=newConnection;$('#resumeConnection').onclick=()=>showHome(false);$('#homeDemo').onclick=()=>$('#demo').click();$('#close').onclick=()=>$('#dialog').close();let mode='uri';function setMode(next){mode=next;uriInput.disabled=next!=='uri';$('#uriFields').hidden=next!=='uri';$('#separateFields').hidden=next!=='fields';$('#uriTab').classList.toggle('selected',next==='uri');$('#fieldsTab').classList.toggle('selected',next==='fields')}$('#uriTab').onclick=()=>setMode('uri');$('#fieldsTab').onclick=()=>setMode('fields');
+async function connect(config,gateway){
+  if(busy)return;busy=true;controls();$('#connectError').textContent='';
+  let newSession;const previous={conn,session};
+  try{
+    conn=nativeAndroid?{native:true}:gateway;
+    const response=await api('/connect',config);session=response.session;newSession=session;
+    const nextSchema=await api('/schema');
+    if(previous.session){const current={conn,session};conn=previous.conn;session=previous.session;await api('/disconnect').catch(()=>{});({conn,session}=current)}
+    schema=nextSchema;demo=false;currentProfileId=response.profileId||null;updateSchema();
+    $('#status').textContent='Connesso'+(response.name?' · '+response.name:'');$('#status').classList.add('connected');
+    $('#dialog').close();$('#connectForm').reset();editingProfileId=null;validateUriField();renderResults([]);
+    setView('schema');showHome(false);connectionState();
+    feedback(response.saveError||'Connessione attiva. Scegli una tabella o scrivi una query.',!!response.saveError);
+    refreshConnections();
+  }catch(error){
+    if(newSession)await api('/disconnect').catch(()=>{});conn=previous.conn;session=previous.session;
+    if($('#dialog').open)$('#connectError').textContent=error.message;else connectionHome.error(error.message);
+  }finally{busy=false;controls()}
 }
+$('#connectForm').onsubmit=async event=>{
+  event.preventDefault();const validated=mode==='uri'?validateUriField(true):null;
+  if(validated&&!validated.valid){uriInput.focus();return}
+  const data=Object.fromEntries(new FormData(event.target));
+  const config=mode==='uri'?{connectionString:validated.uri,ssl:data.ssl}:Object.fromEntries(['host','port','database','user','password','ssl'].map(key=>[key,data[key]]));
+  if(nativeAndroid)Object.assign(config,{name:data.name,saveConnection:event.target.elements.saveConnection.checked,replaceProfileId:editingProfileId||''});
+  let gateway;
+  if(!nativeAndroid){try{const url=new URL(data.gateway);if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)))throw new Error('Usa HTTPS per il gateway remoto');gateway={gateway:data.gateway.replace(/\/$/,''),token:data.token}}catch(error){$('#connectError').textContent=error.message;return}}
+  await connect(config,gateway);
+};
+$('#refresh').onclick=async()=>{if(!session)return;try{schema=await api('/schema');updateSchema();feedback('Schema aggiornato')}catch(e){feedback(e.message,true)}};
+$('#disconnect').onclick=async()=>{try{await api('/disconnect')}catch{}session=null;conn=null;schema=[];demo=false;updateSchema();renderResults([]);$('#run').disabled=true;$('#disconnect').disabled=true;$('#status').textContent='Non connesso';$('#status').classList.remove('connected');currentProfileId=null;feedback('Sessione chiusa. Le connessioni salvate restano disponibili.');connectionState();showHome()};
 $('#demo').onclick=async()=>{
   if(session)await api('/disconnect').catch(()=>{});session=null;conn=null;demo=true;
-  schema=demoResults()[0].fields.map(column_name=>({table_schema:'public',table_name:'ordini',column_name,data_type:column_name==='id'?'integer':column_name==='metadata'?'jsonb':'text'}));
+  schema=demoSchema();
   updateSchema();editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT *\nFROM public.ordini\nLIMIT 100;'}});
-  $('#status').textContent='Demo · dati di esempio';$('#status').classList.add('connected');connectionState();await run();
+  currentProfileId=null;showHome(false);$('#status').textContent='Demo · dati di esempio';$('#status').classList.add('connected');connectionState();await run();
 };
 $('#export').onclick=async()=>{const r=resultsView.getExport();if(!r.fields.length)return;const safe=r.rows.map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,typeof v==='string'&&/^[=+\-@\t\r]/.test(v)?"'"+v:v])));const text='\ufeff'+csv(safe,r.fields);if(nativeAndroid){try{await androidApi('/export',{text});feedback('CSV salvato.')}catch(e){feedback(e.message,true)}return}const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='psql-risultati.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#install').hidden=false});$('#install').onclick=async()=>{if(installPrompt){await installPrompt.prompt();installPrompt=null;$('#install').hidden=true}};
 if(!nativeAndroid&&'serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>feedback('Installazione offline non disponibile',true));
 
-document.querySelector('.brand').onclick=e=>{e.preventDefault();setView('query')};document.documentElement.classList.toggle('native-android',nativeAndroid);
-renderTree();controls();setView(activeView,false);
+document.querySelector('.brand').onclick=e=>{e.preventDefault();showHome()};document.documentElement.classList.toggle('native-android',nativeAndroid);
+renderTree();controls();setView(activeView,false);showHome();
+if(nativeAndroid&&window.PsqlNative)new AppUpdates($('#appUpdates'),$('#updateDialog'),androidApi).check();

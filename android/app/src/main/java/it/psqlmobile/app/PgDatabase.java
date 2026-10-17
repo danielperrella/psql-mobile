@@ -65,13 +65,38 @@ public final class PgDatabase implements AutoCloseable {
     public JSONObject query(String id, String sql) throws Exception {
         if (sql == null || sql.trim().isEmpty()) throw new IllegalArgumentException("Query vuota.");
         if (sql.length() > 65536) throw new IllegalArgumentException("Query troppo lunga (massimo 64 KB).");
+        return execute(connection(id), sql, null);
+    }
+
+    public JSONObject related(String id, String relationId, JSONArray values) throws Exception {
+        Connection connection=connection(id);
+        JSONObject relation=RelationCatalog.find(connection,relationId);
+        JSONArray columns=relation.getJSONArray("targetColumns");
+        if (values.length()!=columns.length()) throw new IllegalArgumentException("Chiave della relazione incompleta.");
+        List<String> predicates=new ArrayList<>();
+        for (int i=0;i<columns.length();i++) {
+            if (values.isNull(i)||!(values.get(i) instanceof String)||values.getString(i).length()>MAX_CELL)
+                throw new IllegalArgumentException("Valore della relazione non valido.");
+            predicates.add(RelationCatalog.quote(columns.getString(i))+" = ?");
+        }
+        String sql="SELECT * FROM "+RelationCatalog.quote(relation.getString("targetSchema"))+"."
+            +RelationCatalog.quote(relation.getString("targetTable"))+" WHERE "+String.join(" AND ",predicates)+" LIMIT 2";
+        JSONObject result=execute(connection,sql,values);
+        if (result.getJSONArray("results").getJSONObject(0).getJSONArray("rows").length()>1)
+            throw new IllegalStateException("Relazione ambigua: sono stati trovati più record.");
+        return result.put("targetSchema",relation.getString("targetSchema")).put("targetTable",relation.getString("targetTable"));
+    }
+
+    private JSONObject execute(Connection connection, String sql, JSONArray values) throws Exception {
         long started = System.nanoTime();
         JSONArray results = new JSONArray();
         int budget = MAX_RESULT_CHARS;
-        try (Statement statement = connection(id).createStatement()) {
+        try (Statement statement = values==null?connection.createStatement():connection.prepareStatement(sql)) {
             statement.setQueryTimeout(15);
             statement.setMaxRows(MAX_ROWS + 1);
-            boolean hasRows = statement.execute(sql);
+            if (values!=null) for (int i=0;i<values.length();i++)
+                ((PreparedStatement)statement).setObject(i+1,values.getString(i),Types.OTHER);
+            boolean hasRows = values==null?statement.execute(sql):((PreparedStatement)statement).execute();
             do {
                 JSONObject result = new JSONObject();
                 JSONArray fields = new JSONArray(), rows = new JSONArray();
@@ -86,6 +111,10 @@ public final class PgDatabase implements AutoCloseable {
                             int suffix = 2;
                             while (!used.add(label)) label = base + " (" + suffix++ + ")";
                             labels.add(label); fields.put(label);
+                        }
+                        try { result.put("relations",RelationCatalog.describe(connection,meta,labels)); }
+                        catch (SQLException e) {
+                            result.put("relations",new JSONArray()).put("relationWarning","Relazioni non disponibili per questo risultato.");
                         }
                         while (cursor.next()) {
                             if (rows.length() >= MAX_ROWS || budget <= 0) { truncated = true; break; }

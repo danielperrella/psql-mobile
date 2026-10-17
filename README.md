@@ -6,7 +6,11 @@ App Android installabile con connessione **diretta a PostgreSQL**: inserisci una
 
 [Scarica APK Android](https://danielperrella.github.io/psql-mobile/psql-mobile.apk) · [Pagina e demo web](https://danielperrella.github.io/psql-mobile/)
 
-L'APK è una build **debug per prova**, firmata automaticamente, per Android 8.0/API 26 o successivo. Si installa manualmente autorizzando il browser a installare quel file. Non è una pubblicazione sul Play Store. Le build CI usano chiavi debug effimere: per passare a una build con firma diversa potrebbe essere necessario disinstallare la precedente. Per una distribuzione stabile/Play Store occorre una chiave release privata conservata fuori dal repository.
+L'APK 1.3.0 usa una **firma release stabile**, per Android 8.0/API 26 o successivo. Per il passaggio dalle vecchie build debug occorre disinstallare la versione precedente una sola volta. Gli aggiornamenti successivi mantengono i dati dell’app. Non è una pubblicazione sul Play Store.
+
+All’avvio trovi **Le tue connessioni**: scegli un database salvato oppure aggiungine uno. Nome, stringa, credenziali e TLS vengono conservati cifrati con AES-256-GCM e una chiave non esportabile nell’Android Keystore. Puoi modificare o rimuovere le connessioni e scegliere di non salvare una nuova connessione. Chiudere una sessione non cancella il profilo. Disinstallazione o cancellazione dati rimuovono i profili.
+
+La schermata iniziale controlla `update.json` su GitHub Pages e propone **Aggiorna / Più tardi** quando trova una versione superiore. Il download avviene nell’app; vengono verificati dimensione, SHA-256, package, versione e corrispondenza della firma con l’app installata. Android gestisce l’autorizzazione per installare aggiornamenti e la conferma finale. Il controllo online non blocca le connessioni ai database.
 
 Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `localhost` sul telefono indica il telefono. Questa app non crea un database e non modifica firewall o configurazione PostgreSQL.
 
@@ -19,6 +23,7 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 - Interfaccia mobile con tre viste: **Tabelle, SQL e Risultati**, raggiungibili dalla barra inferiore. Nessuna griglia da scorrere in orizzontale: ogni record si espande con tutti i campi in verticale, anche per testi, JSON e nomi di colonna lunghi.
 - Schema live con ricerca e preparazione di SELECT, completamento CodeMirror e query o selezione SQL. L’editor va a capo automaticamente. La demo usa dati simulati.
 - Risultati a pagine di 20 record e ricerca su tutti i record caricati. Gli script con più risultati hanno un selettore dedicato. Il CSV esporta il risultato selezionato e filtrato, comprese tutte le sue pagine, tramite selettore Android.
+- Nell’app Android le chiavi esterne dichiarate da PostgreSQL mostrano **Apri [tabella]** nei campi del record. Il collegamento funziona anche con alias e chiavi composte complete; puoi seguire più relazioni e tornare al risultato originale conservando pagina e filtro. NULL, valori troncati, espressioni e chiavi composte incomplete o ambigue non generano collegamenti. Non vengono dedotte relazioni dal nome `*_id`. Il record viene letto con query parametrizzata e con gli stessi permessi/RLS della connessione; non ci sono modifiche automatiche ai dati.
 - Timeout connessione 10 s, query 15 s, socket 20 s. Sessione inattiva chiusa dopo 30 minuti e alla distruzione dell'Activity. La rotazione ricrea la sessione: è necessario riconnettersi.
 - Ogni risultato visualizza al massimo 1.000 righe; le celle oltre 64 Ki caratteri e i risultati oltre 2 milioni di caratteri sono troncati e segnalati. Lo schema è limitato a 10.000 colonne. Usa `LIMIT` per query molto grandi. I valori sono restituiti come testo per conservare precisione numerica e date.
 
@@ -26,7 +31,7 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 
 L'APK incorpora l'interfaccia ed esegue la parte database in **Java Android**, su un worker separato, con il driver ufficiale [pgJDBC](https://jdbc.postgresql.org/). L'interfaccia viene riutilizzata in una WebView locale tramite [WebViewAssetLoader](https://developer.android.com/develop/ui/views/layout/webapps/load-local-content); non viene caricata da GitHub Pages e non comunica con un servizio HTTP. Il bridge nativo è accessibile solo al contenuto incluso nell'APK; richieste e pagine remote nella WebView sono bloccate.
 
-Credenziali, token di sessione e connessioni restano in memoria: niente localStorage, cookie, log applicativi con credenziali o backup Android. Il CSV viene salvato solo nel documento scelto dall'utente. SQL usa tutti i permessi del ruolo PostgreSQL: scegli un ruolo di sola lettura se necessario.
+Le sessioni e le connessioni attive restano in memoria. I profili scelti dall’utente vengono cifrati nell’archivio privato Android; la lista inviata all’interfaccia non contiene password. Niente localStorage, cookie, log applicativi con credenziali o backup/trasferimento dei profili Android. Il CSV viene salvato solo nel documento scelto dall'utente. SQL usa tutti i permessi del ruolo PostgreSQL: scegli un ruolo di sola lettura se necessario.
 
 ## Compilazione Android
 
@@ -42,11 +47,13 @@ cd android
 
 Su Windows usa `gradlew.bat`. APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-Il workflow GitHub Actions compila e verifica l'APK, lo rende scaricabile dalla pagina e lo conserva anche come artifact `psql-mobile-android`. Il codice del gateway storico è solo per la versione browser e non entra nell'APK.
+GitHub Actions compila e verifica il sorgente e pubblica l’APK release già firmato in `release/psql-mobile.apk`, dopo averne controllato integrità, firma e versione. L’artifact `psql-mobile-android` contiene questa stessa release. Il codice del gateway storico è solo per la versione browser e non entra nell'APK.
+
+Per una nuova distribuzione, incrementa `publishedVersionCode` e `versionName` in Gradle e la versione dell’interfaccia, poi compila `assembleRelease` e usa `node scripts/package-release.mjs`. Versiona insieme sorgenti, APK pubblico e `release/update.json`. La chiave privata non entra nel repository né negli artifact: su questo PC è in `%LOCALAPPDATA%/PsqlMobile/signing/`, da conservare con un backup privato. Altrove imposta `PSQL_SIGNING_PROPERTIES` a un file privato con `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. Senza chiave le build release restano non firmate e non devono essere distribuite.
 
 ## Test Android con PostgreSQL reale
 
-I test `AppFlowTest` e `DirectConnectionTest` verificano il modulo di connessione senza gateway, autenticazione, query, NULL, Unicode, risultati multipli, limite righe, nomi colonna duplicati, errori e disconnessione. Usa un database di prova isolato, mai un database di produzione. Con un emulatore Android e PostgreSQL su porta locale 55432:
+I test Android verificano anche riapertura dei profili, cifratura a riposo, chiavi esterne/alias/chiavi composte e navigazione con ritorno ai risultati. `AppUpdaterTest` verifica integrità e firma con due APK di prova locali (versione successiva con firma corretta e con firma diversa) in `android/app/src/androidTest/assets/`, esclusi dal repository; senza fixture il test è saltato. Il test opzionale `savedConnectionSurvivesPackageUpdate` viene eseguito dopo un’installazione `adb install -r` per verificare la conservazione reale dei profili. `tests/ui-fixture.html`, servito da Vite in modalità Android, consente di provare home e avviso aggiornamento con dati simulati e non entra nei bundle. Usa un database di prova isolato, mai un database di produzione. Con un emulatore Android e PostgreSQL su porta locale 55432:
 
 ```sh
 adb reverse tcp:55432 tcp:55432

@@ -7,5 +7,6 @@ const paths = {
   refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>',
   download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
   chevron: '<path d="m9 5 7 7-7 7"/>',
+  related: '<path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/>',
 };
 export const icon = name => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || ''}</svg>`;

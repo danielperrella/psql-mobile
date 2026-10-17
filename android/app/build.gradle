@@ -1,5 +1,10 @@
 plugins { id 'com.android.application' }
 
+def signingFile = file(System.getenv('PSQL_SIGNING_PROPERTIES') ?: ((System.getenv('LOCALAPPDATA') ?: System.getProperty('user.home')) + '/PsqlMobile/signing/signing.properties'))
+def signingValues = new Properties()
+def publishedVersionCode = 4
+if (signingFile.exists()) signingFile.withInputStream { signingValues.load(it) }
+
 android {
     namespace 'it.psqlmobile.app'
     compileSdk 35
@@ -8,19 +13,36 @@ android {
         applicationId 'it.psqlmobile.app'
         minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName '1.2.0'
+        versionCode ((project.findProperty('releaseVersionCode') ?: publishedVersionCode).toInteger())
+        versionName '1.3.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    signingConfigs {
+        if (!signingValues.isEmpty()) {
+            distribution {
+                storeFile file(signingValues['storeFile'])
+                storePassword signingValues['storePassword']
+                keyAlias signingValues['keyAlias']
+                keyPassword signingValues['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        if (!signingValues.isEmpty()) {
+            debug.signingConfig signingConfigs.distribution
+            release.signingConfig signingConfigs.distribution
+        }
+    }
     sourceSets.main.assets.srcDirs = ['../../dist-android']
     packaging.resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
 }
 
 dependencies {
+    implementation 'androidx.core:core:1.15.0'
     implementation 'androidx.webkit:webkit:1.12.1'
     implementation 'org.postgresql:postgresql:42.7.14'
     testImplementation 'junit:junit:4.13.2'

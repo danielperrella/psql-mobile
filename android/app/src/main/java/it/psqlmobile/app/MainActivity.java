@@ -17,6 +17,7 @@ public final class MainActivity extends Activity {
     private static final String START = "https://" + ORIGIN + "/assets/index.html";
     private WebView webView;
     private PostgresBridge bridge;
+    private AppUpdater updater;
     private String exportId, exportText;
 
     @Override public void onCreate(Bundle state) {
@@ -67,18 +68,24 @@ public final class MainActivity extends Activity {
             @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) { handler.cancel(); }
         });
         webView.setWebChromeClient(new WebChromeClient());
-        bridge = new PostgresBridge(this, webView);
+        updater = new AppUpdater(this);
+        bridge = new PostgresBridge(this, webView, updater);
         webView.addJavascriptInterface(bridge, "PsqlNative");
         webView.loadUrl(START);
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::handleBack);
     }
 
     private void handleBack() {
-        webView.evaluateJavascript("(()=>{const d=document.querySelector('dialog[open]');if(d){d.close();return true}return false})()",
+        webView.evaluateJavascript("(()=>{const d=document.querySelector('dialog[open]');if(d){if(d.dispatchEvent(new Event('cancel',{cancelable:true})))d.close();return true}return false})()",
             result -> { if (!"true".equals(result)) finish(); });
     }
 
     @Override public void onBackPressed() { handleBack(); }
+
+    @Override protected void onResume() { super.onResume(); if(updater!=null)updater.resume(); }
+    void updateInstallError() {
+        webView.evaluateJavascript("window.dispatchEvent(new Event('psql-update-install-error'))",null);
+    }
 
     void saveCsv(String id, String text) {
         runOnUiThread(() -> {

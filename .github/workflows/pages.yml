@@ -39,14 +39,20 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest lintDebug assembleDebug
       - run: npm run build
+      - name: Verify stable signed release
+        run: |
+          node scripts/verify-release.mjs
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify release/psql-mobile.apk
       - name: Include Android APK in download page
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk dist/psql-mobile.apk
+        run: |
+          cp release/psql-mobile.apk dist/psql-mobile.apk
+          cp release/update.json dist/update.json
       - uses: actions/upload-artifact@v4
         with:
           name: psql-mobile-android
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: release/psql-mobile.apk
       - name: Package downloadable app and gateway
-        run: zip -r dist/psql-mobile.zip src public server android index.html vite.config.js package.json package-lock.json README.md Dockerfile .env.example .github -x 'android/.gradle/*' 'android/app/build/*' 'android/local.properties'
+        run: zip -r dist/psql-mobile.zip src public server android scripts release/update.json index.html vite.config.js package.json package-lock.json README.md Dockerfile .env.example .github -x 'android/.gradle/*' 'android/app/build/*' 'android/local.properties' 'android/app/src/androidTest/assets/*'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

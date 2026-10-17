@@ -9,3 +9,9 @@ android/local.properties
 android/**/build/
 .tooling/
 *.apk
+!release/psql-mobile.apk
+android/app/src/androidTest/assets/*.apk
+*.jks
+*.keystore
+*.idsig
+**/signing.properties

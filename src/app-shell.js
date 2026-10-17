@@ -11,6 +11,15 @@ export const appShell = (native, version) => `
     </div>
     <div class="connection-strip"><span id="status">Non connesso</span><span class="app-version">${native ? 'Android' : 'Web'} ${version}</span></div>
   </header>
+  <main id="connectionHome" class="connection-home" aria-labelledby="connectionsTitle">
+    <div class="home-heading"><h1 id="connectionsTitle">Le tue connessioni</h1><p>${native ? 'I tuoi database, pronti da riaprire.' : 'Apri un database o esplora la demo.'}</p></div>
+    <button id="addConnection" class="primary">${icon('plus')}<span>Aggiungi connessione</span></button>
+    <p class="connections-message" role="status">${native ? 'Caricamento delle connessioni…' : 'Le connessioni si salvano nell’app Android.'}</p>
+    <div class="saved-connections"></div>
+    <p class="storage-note">${native ? 'La stringa e le credenziali vengono salvate cifrate su questo dispositivo. Nessun account aggiuntivo.' : 'Usa l’APK Android per salvare le connessioni sul dispositivo.'}</p>
+    <div class="home-footer"><button id="resumeConnection" class="secondary" hidden>Torna al database</button><button id="homeDemo" class="secondary">Prova la demo</button></div>
+    ${native ? '<div id="appUpdates" class="app-updates"><div class="update-banner" hidden><p>È disponibile un aggiornamento.</p><button id="downloadUpdate" class="primary">Aggiorna l’app</button></div><p class="update-check-status" role="status"></p><button id="checkUpdates" class="quiet-button">Verifica aggiornamenti</button></div>' : ''}
+  </main>
   <main class="workspace" id="workspace">
     <section id="schemaPanel" class="work-panel schema-panel" data-panel="schema" aria-labelledby="schemaTitle">
       <div class="panel-heading"><div><h2 id="schemaTitle">Tabelle</h2><p id="schemaCount">Esplora il database</p></div><button id="refresh" class="icon-button" aria-label="Aggiorna schema">${icon('refresh')}</button></div>
@@ -39,4 +48,6 @@ export const appShell = (native, version) => `
   <div id="notice" class="app-notice" role="status" aria-live="polite" hidden></div>
   ${native ? '' : '<footer class="web-footer"><span>La demo contiene dati di esempio.</span><a href="./psql-mobile.zip" download>Scarica il progetto</a></footer>'}
   ${connectionDialog(native, version)}
+  <dialog id="relatedDialog" class="related-dialog" aria-labelledby="relatedTitle"></dialog>
+  ${native ? '<dialog id="updateDialog" aria-labelledby="updateTitle"></dialog>' : ''}
 `;

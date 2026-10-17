@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {displayValue, filterRows, pageRows, recordTitle} from './results-view.js';
+import {displayValue, filterRows, pageRows, recordTitle, availableRelations} from './results-view.js';
 
 test('pagination keeps every record reachable and clamps a stale page after filtering', () => {
   const rows = Array.from({length: 47}, (_, id) => ({id}));
@@ -9,6 +9,17 @@ test('pagination keeps every record reachable and clamps a stale page after filt
   assert.deepEqual([last.from, last.to, last.pages], [41, 47, 3]);
   assert.equal(pageRows(rows.slice(0, 3), 2).page, 0);
   assert.deepEqual(pageRows([], 9).rows, []);
+});
+
+test('relation links require declared, complete, non-null keys and untruncated values', () => {
+  const relation={id:'12',fields:['tenant','customer'],targetColumns:['tenant_id','id']};
+  const result={relations:[relation]};
+  assert.deepEqual(availableRelations(result,{tenant:'a',customer:'9007199254740993123'},'customer'),[relation]);
+  assert.deepEqual(availableRelations(result,{tenant:'a',customer:null},'customer'),[]);
+  assert.deepEqual(availableRelations(result,{customer:'12'},'customer'),[]);
+  assert.deepEqual(availableRelations({...result,truncated:true},{tenant:'a',customer:'12'},'customer'),[]);
+  assert.deepEqual(availableRelations({}, {customer_id:'12'},'customer_id'),[]);
+  assert.deepEqual(availableRelations(result,{tenant:'',customer:'12'},'customer'),[relation]);
 });
 
 test('search covers all loaded records, accents, nulls, objects and exact large numbers', () => {

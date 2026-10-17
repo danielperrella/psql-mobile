@@ -1,0 +1,8 @@
+{
+  "versionCode": 4,
+  "versionName": "1.3.0",
+  "apkUrl": "https://danielperrella.github.io/psql-mobile/psql-mobile.apk",
+  "size": 2412031,
+  "sha256": "f34286a3065e63293110de010cfaf1ae7561c517ed13bc8f4bcf161b473e7b2f",
+  "notes": "Connessioni salvate, aggiornamenti dall’app e navigazione dei record collegati."
+}
