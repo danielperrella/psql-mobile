@@ -1,0 +1,17 @@
+import express from 'express';
+import pg from 'pg';
+import {timingSafeEqual,randomBytes} from 'node:crypto';
+import {connectionConfig} from './core.js';
+const app=express(), sessions=new Map();
+const token=process.env.GATEWAY_TOKEN;
+if(!token||token.length<24)throw new Error('Imposta GATEWAY_TOKEN (almeno 24 caratteri casuali)');
+const origins=(process.env.ALLOWED_ORIGINS||'http://localhost:5173').split(',');
+app.use((req,res,next)=>{const origin=req.headers.origin;if(origin&&!origins.includes(origin))return res.sendStatus(403);if(origin){res.set('Access-Control-Allow-Origin',origin);res.set('Vary','Origin')}res.set('Access-Control-Allow-Headers','Authorization,Content-Type');res.set('Access-Control-Allow-Methods','POST,OPTIONS');res.set('Cache-Control','no-store');if(req.method==='OPTIONS')return res.sendStatus(204);const actual=Buffer.from(req.headers.authorization||'');const expected=Buffer.from('Bearer '+token);if(actual.length!==expected.length||!timingSafeEqual(actual,expected))return res.sendStatus(401);next()});
+app.use(express.json({limit:'64kb'}));
+app.post('/connect',async(req,res)=>{let client;try{client=new pg.Client({...connectionConfig(req.body),connectionTimeoutMillis:10000,statement_timeout:15000,query_timeout:20000});client.on('error',()=>{for(const [id,s] of sessions)if(s.client===client)sessions.delete(id)});await client.connect();const id=randomBytes(32).toString('hex');sessions.set(id,{client,last:Date.now(),busy:false});res.json({session:id})}catch{await client?.end().catch(()=>{});res.status(400).json({error:'Connessione fallita. Verifica dati, rete e certificato TLS.'})}});
+app.use((req,res,next)=>{const s=sessions.get(req.body?.session);if(!s)return res.status(401).json({error:'Sessione scaduta: riconnettiti'});if(s.busy)return res.status(409).json({error:'Query già in esecuzione'});s.last=Date.now();req.session=s;next()});
+app.post('/schema',async(req,res)=>{try{const result=await req.session.client.query("SELECT table_schema,table_name,column_name,data_type FROM information_schema.columns WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema,table_name,ordinal_position");res.json(result.rows)}catch{res.status(400).json({error:'Impossibile leggere lo schema'})}});
+app.post('/query',async(req,res)=>{const s=req.session;if(typeof req.body.sql!=='string'||!req.body.sql.trim())return res.status(400).json({error:'Query vuota'});s.busy=true;const start=Date.now();try{const raw=await s.client.query(req.body.sql);const results=(Array.isArray(raw)?raw:[raw]).map(r=>({command:r.command,rowCount:r.rowCount,fields:r.fields.map(f=>f.name),rows:r.rows.slice(0,1000),truncated:r.rows.length>1000}));res.json({results,ms:Date.now()-start})}catch(e){res.status(400).json({error:e.message,code:e.code,position:e.position})}finally{s.busy=false}});
+app.post('/disconnect',async(req,res)=>{sessions.delete(req.body.session);await req.session.client.end().catch(()=>{});res.json({ok:true})});
+setInterval(()=>{for(const [id,s]of sessions)if(!s.busy&&Date.now()-s.last>1800000){sessions.delete(id);s.client.end().catch(()=>{})}},60000).unref();
+app.listen(Number(process.env.PORT||8787),process.env.HOST||'127.0.0.1',()=>console.log('Gateway attivo sulla porta '+(process.env.PORT||8787)));
