@@ -5,6 +5,25 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ConnectionOptionsTest {
+    @Test public void acceptsPsqlCommandWithoutLosingNeonStyleOptions() throws Exception {
+        String uri = "postgresql://utente:password@db.example.com/database?sslmode=require&channel_binding=require";
+        for (String value : new String[]{"psql '" + uri + "'", "psql \"" + uri + "\"", "psql " + uri, "psql ‘" + uri + "’", "'" + uri + "'"}) {
+            ConnectionOptions options = ConnectionOptions.parse(new JSONObject().put("connectionString", value));
+            assertEquals("jdbc:postgresql://db.example.com:5432/database", options.jdbcUrl);
+            assertEquals("require", options.properties.getProperty("sslmode"));
+            assertEquals("require", options.properties.getProperty("channelBinding"));
+        }
+    }
+    @Test public void invalidCommandHasSpecificFeedbackInsteadOfPasswordBlame() throws Exception {
+        for (String value : new String[]{"psql 'postgresql://user:secret@db.example.com/db", "psql --help", "postgres://user:secret%oops@db/db"}) {
+            try { ConnectionOptions.parse(new JSONObject().put("connectionString", value)); fail("Invalid paste accepted"); }
+            catch (IllegalArgumentException expected) {
+                assertFalse(expected.getMessage().contains("secret"));
+                assertFalse(expected.getMessage().contains("Codifica i caratteri speciali della password"));
+                assertTrue(expected.getMessage().contains("Virgolette") || expected.getMessage().contains("Dopo psql") || expected.getMessage().contains("Sequenza %"));
+            }
+        }
+    }
     @Test public void uriOnlyAndEncodedCredentials() throws Exception {
         ConnectionOptions options = ConnectionOptions.parse(new JSONObject().put("connectionString",
             "postgresql://my%40user:p%40ss+word%3A%2F@db.example/my%20db"));

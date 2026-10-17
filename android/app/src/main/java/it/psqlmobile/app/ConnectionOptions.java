@@ -4,7 +4,7 @@ import org.json.JSONObject;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.net.URISyntaxException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -23,6 +23,26 @@ public final class ConnectionOptions {
         // '+' is literal in PostgreSQL URIs, including passwords.
         try { return URLDecoder.decode(value.replace("+", "%2B"), "UTF-8"); }
         catch (java.io.UnsupportedEncodingException e) { throw new AssertionError(e); }
+        catch (IllegalArgumentException e) { throw new IllegalArgumentException("Sequenza % non valida nella URI. Un % letterale si scrive %25."); }
+    }
+
+    static String normalize(String value) {
+        String uri = value.trim();
+        boolean command = uri.matches("(?is)^psql(?:\\.exe)?(?:\\s.*|$)");
+        if (command) uri = uri.replaceFirst("(?i)^psql(?:\\.exe)?(?:\\s+|$)", "").trim();
+        if (uri.isEmpty()) throw new IllegalArgumentException("Incolla una URI PostgreSQL oppure psql seguito dalla URI tra virgolette.");
+        char first = uri.charAt(0), last = uri.charAt(uri.length() - 1);
+        char closing = first == '\'' ? '\'' : first == '"' ? '"' : first == '‘' ? '’' : first == '“' ? '”' : 0;
+        if (closing != 0) {
+            if (uri.length() < 2 || last != closing) throw new IllegalArgumentException("Virgolette esterne non chiuse. Esempio generico: psql 'postgresql://utente:password@db.example.com/database'.");
+            uri = uri.substring(1, uri.length() - 1).trim();
+        }
+        if (!(uri.startsWith("postgresql://") || uri.startsWith("postgres://")))
+            throw new IllegalArgumentException(command ? "Dopo psql incolla una sola URI, senza altre opzioni del terminale." : "La URI deve iniziare con postgresql:// o postgres://. Puoi incollare anche psql seguito dalla URI tra virgolette.");
+        if (uri.matches("(?s).*\\s.*")) throw new IllegalArgumentException("Spazio o a capo non codificato nella URI. Per uno spazio nelle credenziali usa %20.");
+        if (uri.matches("(?s).*%(?![0-9a-fA-F]{2}).*")) throw new IllegalArgumentException("Sequenza % non valida nella URI. Un % letterale si scrive %25.");
+        if (uri.indexOf('#') >= 0) throw new IllegalArgumentException("Il carattere # nelle credenziali deve essere scritto %23. Esempio generico: pass%23word.");
+        return uri;
     }
 
     public static ConnectionOptions parse(JSONObject input) {
@@ -32,12 +52,13 @@ public final class ConnectionOptions {
         String tls = input.optString("ssl", "auto"), uriTls = "verify-full";
         String channelBinding = "prefer", applicationName = "Psql Mobile Android";
         String connectionString = input.optString("connectionString").trim();
+        if (!connectionString.isEmpty()) connectionString = normalize(connectionString);
         if (!connectionString.isEmpty()) {
             try {
                 URI uri = new URI(connectionString);
                 if (!("postgres".equals(uri.getScheme()) || "postgresql".equals(uri.getScheme()))
                         || uri.getHost() == null || uri.getFragment() != null) {
-                    throw new IllegalArgumentException();
+                    throw new IllegalArgumentException("Controlla host e separatori della URI. Un @ nelle credenziali si scrive %40. Esempio generico: postgresql://utente:pass%40word@db.example.com/database.");
                 }
                 host = uri.getHost();
                 port = uri.getPort() == -1 ? 5432 : uri.getPort();
@@ -53,7 +74,7 @@ public final class ConnectionOptions {
                     if (part.isEmpty()) continue;
                     String[] pair = part.split("=", 2);
                     String key = decode(pair[0]);
-                    if (params.containsKey(key)) throw new IllegalArgumentException();
+                    if (params.containsKey(key)) throw new IllegalArgumentException("Un parametro della URI è ripetuto: usa una sola occorrenza per parametro.");
                     params.put(key, pair.length == 2 ? decode(pair[1]) : "");
                 }
                 for (Map.Entry<String,String> param : params.entrySet()) {
@@ -66,11 +87,8 @@ public final class ConnectionOptions {
                         default: throw new IllegalArgumentException("Parametro URI non supportato. Usa host, porta, database, utente, password, sslmode, channel_binding e application_name.");
                     }
                 }
-            } catch (IllegalArgumentException e) {
-                if (e.getMessage() != null && e.getMessage().startsWith("Parametro URI")) throw e;
-                throw new IllegalArgumentException("URI PostgreSQL non valida. Usa postgresql://utente:password@host:5432/database.");
-            } catch (Exception e) {
-                throw new IllegalArgumentException("URI PostgreSQL non valida. Codifica i caratteri speciali della password con percent-encoding.");
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Carattere non ammesso alla posizione " + (e.getIndex() + 1) + " della URI. Nelle credenziali usa, per esempio, %40 per @, %2F per / e %3F per ?.");
             }
         }
         if (host.trim().isEmpty() || user.trim().isEmpty()) throw new IllegalArgumentException("Host e utente obbligatori.");

@@ -14,7 +14,7 @@ public class DirectConnectionTest {
         String uri = InstrumentationRegistry.getArguments().getString("postgresUri");
         assertNotNull("Pass -Pandroid.testInstrumentationRunnerArguments.postgresUri=...", uri);
         try (PgDatabase db = new PgDatabase()) {
-            String id = db.connect(new JSONObject().put("connectionString", uri)).getString("session");
+            String id = db.connect(new JSONObject().put("connectionString", "psql '" + uri + "'")).getString("session");
             db.query(id, "CREATE TEMP TABLE psql_mobile_probe(id integer, label text); INSERT INTO psql_mobile_probe VALUES (1,'prova')");
             boolean found = false;
             JSONArray schema = db.schema(id);

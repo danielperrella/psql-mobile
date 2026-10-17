@@ -48,9 +48,18 @@ public class AppFlowTest {
             assertEquals("true", evaluate(view, "Boolean(document.querySelector('#connectForm'))"));
             assertEquals("false", evaluate(view, "Boolean(document.querySelector('[name=gateway],[name=token]'))"));
             assertEquals("true", evaluate(view, "Boolean(window.PsqlNative && window.__psqlNativeReply)"));
+            assertEquals("\"TEXTAREA\"", evaluate(view, "document.querySelector('[name=connectionString]').tagName"));
+            assertEquals("true", evaluate(view, "document.querySelector('#connectionStringHint').textContent.includes('postgresql://utente:password@db.example.com')"));
+            evaluate(view, "(()=>{const f=document.querySelector('[name=connectionString]');f.value='postgres://utente:pass%oops@db.example.com/db';f.dispatchEvent(new Event('input'));return true})()");
+            assertEquals("\"true\"", evaluate(view, "document.querySelector('[name=connectionString]').getAttribute('aria-invalid')"));
+            assertEquals("true", evaluate(view, "document.querySelector('#connectionStringValidation').textContent.includes('%25')"));
+            String command = "psql '" + uri + "'";
             String script = "(()=>{const f=document.querySelector('#connectForm');f.elements.connectionString.value="
-                + JSONObject.quote(uri) + ";f.dispatchEvent(new Event('submit',{cancelable:true}));return true})()";
+                + JSONObject.quote(command) + ";f.elements.connectionString.dispatchEvent(new Event('input'));return true})()";
             evaluate(view, script);
+            assertEquals("Format feedback: " + evaluate(view, "document.querySelector('#connectionStringValidation').textContent"),
+                "\"false\"", evaluate(view, "document.querySelector('[name=connectionString]').getAttribute('aria-invalid')"));
+            evaluate(view, "document.querySelector('#connectForm').dispatchEvent(new Event('submit',{cancelable:true}))");
             end = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
             while (!"true".equals(evaluate(view, "document.querySelector('#status').classList.contains('connected')")) && System.nanoTime() < end) Thread.sleep(100);
             assertEquals("Connection form error: " + evaluate(view, "document.querySelector('#connectError').textContent"),

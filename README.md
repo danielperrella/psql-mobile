@@ -12,7 +12,7 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 
 ## Connessione e funzioni
 
-- URI `postgres://` e `postgresql://`, percent-encoding di utente/password/database, IPv6; in alternativa campi separati.
+- URI `postgres://` e `postgresql://` oppure comando completo `psql 'postgresql://…'`: prefisso e virgolette esterne vengono riconosciuti automaticamente. Il comando non viene eseguito. Il campo è visibile e multilinea, con esempi generici e validazione durante l’inserimento per virgolette, prefisso, spazi e percent-encoding. Sono supportati percent-encoding di utente/password/database e IPv6; in alternativa campi separati.
 - Parametri URI supportati: `user`, `password`, `sslmode`, `channel_binding`, `application_name`. Parametri sconosciuti sono rifiutati esplicitamente; socket Unix, host multipli, certificati client e CA private importate non sono ancora supportati.
 - Senza `sslmode` viene usato **verify-full**, con CA di sistema Android e verifica del nome host. La scelta TLS esplicita nel modulo prevale sulla URI. `require` cifra ma non verifica il certificato; `prefer`/`allow` seguono il comportamento pgJDBC e possono usare connessioni non cifrate. `disable` va scelto per un database senza TLS su una rete fidata.
 - Autenticazione PostgreSQL con password, MD5 e SCRAM-SHA-256 tramite pgJDBC. Kerberos/GSS/SSPI non sono supportati su Android.
