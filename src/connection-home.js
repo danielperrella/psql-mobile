@@ -15,7 +15,7 @@ export class ConnectionHome {
       const open=document.createElement('button');open.className='saved-open';
       const name=document.createElement('strong');name.textContent=profile.name;
       const detail=document.createElement('span');detail.textContent=profile.unreadable?'Aggiungi nuovamente i dati di connessione.':profile.database+' · '+profile.host;
-      const user=document.createElement('small');user.textContent=profile.unreadable?'':profile.user+(profile.id===currentId?' · In uso':'');
+      const user=document.createElement('small');user.textContent=profile.unreadable?'':profile.user+(profile.readOnly?' · Sola lettura':'')+(profile.id===currentId?' · In uso':'');
       open.append(name,detail,user);open.onclick=()=>this.connect(profile);
       open.dataset.unavailable=String(!!profile.unreadable);if(profile.unreadable)open.disabled=true;
       const actions=document.createElement('div');actions.className='saved-actions';

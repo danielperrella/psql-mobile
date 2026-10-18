@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 
 def signingFile = file(System.getenv('PSQL_SIGNING_PROPERTIES') ?: ((System.getenv('LOCALAPPDATA') ?: System.getProperty('user.home')) + '/PsqlMobile/signing/signing.properties'))
 def signingValues = new Properties()
-def publishedVersionCode = 7
+def publishedVersionCode = 8
 if (signingFile.exists()) signingFile.withInputStream { signingValues.load(it) }
 
 android {
@@ -14,7 +14,7 @@ android {
         minSdk 26
         targetSdk 35
         versionCode ((project.findProperty('releaseVersionCode') ?: publishedVersionCode).toInteger())
-        versionName '1.4.2'
+        versionName '1.5.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {

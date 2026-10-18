@@ -27,7 +27,7 @@ const sequences={ordini:1064,clienti:206,aziende:71};
 function relationTable(id){if(id==='demo-customer')return 'clienti';if(id==='demo-company')return 'aziende';throw new Error('Relazione demo non disponibile.');}
 const dataType=name=>({data_fondazione:'date',ultimo_contatto:'timestamp with time zone',prossimo_appuntamento:'timestamp without time zone',orario_apertura:'time without time zone'}[name]||(name==='metadata'?'jsonb':name==='id'||name.endsWith('_id')?'integer':'text'));
 function target(table){return {schema:'public',table,keyComplete:true,keys:[{column:'id',field:'id'}],fields:fields[table].map(field=>({column:field,field})),canInsert:true,canUpdate:true,canDelete:true};}
-function result(table,rows){return {command:'DEMO',fields:fields[table],rows:structuredClone(rows),relations:relations(table),recordTargets:[target(table)],rowCount:rows.length};}
+function result(table,rows){return {command:'DEMO',columnTypes:Object.fromEntries(fields[table].map(name=>[name,dataType(name)])),fields:fields[table],rows:structuredClone(rows),relations:relations(table),recordTargets:[target(table)],rowCount:rows.length};}
 export function demoResults(sql='SELECT * FROM public.ordini'){return selectDemo(sql,data,result);}
 export function resetDemo(){Object.assign(sequences,{ordini:1064,clienti:206,aziende:71});orders.splice(0,orders.length,...initialOrders()[0].rows);customers.splice(0,customers.length,...names.map((nome,index)=>({id:String(201+index),nome,email:nome.toLowerCase().replace(' ','.')+'@example.com',azienda_id:'71'})));data.aziende.splice(0,data.aziende.length,{...company});}
 export function demoSchema(){
@@ -36,6 +36,19 @@ export function demoSchema(){
 export async function demoRelated({relationId,values}){
   const table=relationTable(relationId);
   return {results:[result(table,data[table].filter(row=>row.id===values[0]))]};
+}
+export async function demoInverse(path,input){
+  const constraints=[{...customerRelation,sourceSchema:'public',sourceTable:'ordini'},{...companyRelation,sourceSchema:'public',sourceTable:'clienti'}];
+  if(path==='/inverse/list'){
+    const {target,keys}=input;if(target.schema!=='public'||!Object.hasOwn(data,target.table)||!data[target.table].some(row=>row.id===keys.id))throw new Error('Record demo non trovato.');
+    return constraints.filter(relation=>relation.targetTable===target.table);
+  }
+  if(path!=='/inverse/read')throw new Error('Operazione demo non disponibile.');
+  const relation=constraints.find(relation=>relation.id===input.relationId);if(!relation)throw new Error('Relazione demo non disponibile.');
+  const parent=data[relation.targetTable].find(row=>row.id===input.keys.id);if(!parent)throw new Error('Record demo non trovato.');
+  const offset=input.offset||0;if(!Number.isInteger(offset)||offset<0||offset>10000||offset%25)throw new Error('Pagina non valida.');
+  const matches=data[relation.sourceTable].filter(row=>relation.sourceColumns.every((column,index)=>row[column]!=null&&String(row[column])===String(parent[relation.targetColumns[index]])));
+  return {...result(relation.sourceTable,matches.slice(offset,offset+25)),hasMore:matches.length>offset+25,offset};
 }
 function definition(table){
   return {...target(table),primaryKey:['id'],columns:fields[table].map(name=>({name,type:dataType(name),category:temporalField(dataType(name),null)?'D':'S',nullable:!['id','nome','cliente','cliente_id','azienda_id'].includes(name),hasDefault:name==='id',generated:name==='id',canInsert:name!=='id',canUpdate:name!=='id'})),relations:relations(table)};

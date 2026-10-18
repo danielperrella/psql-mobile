@@ -49,6 +49,7 @@ export class ResultsView {
     this.onNavigate = onNavigate;
     this.onRecordAction = onRecordAction;
     this.onOpen = onOpen;
+    this.readOnly = false;
     this.results = [];
     this.selected = 0;
     this.page = 0;
@@ -86,6 +87,7 @@ export class ResultsView {
     });
     this.render();
   }
+  setReadOnly(value){this.readOnly=!!value;this.render();}
   getExport() {
     const result = this.results[this.selected];
     return result ? {fields: result.fields, rows: filterRows(result.rows, result.fields, this.search.value)} : {fields: [], rows: []};
@@ -100,7 +102,7 @@ export class ResultsView {
     const result = this.results[this.selected];
     this.results.forEach((entry,index)=>{if(this.picker.options[index])this.picker.options[index].textContent=`Risultato ${index+1} · ${entry.fields.length?entry.rows.length+' record':entry.command}`;});
     const createActions=this.root.querySelector('.result-create-actions');createActions.replaceChildren();
-    for(const target of result?.recordTargets||[]){if(!target.canInsert)continue;const create=node('button',undefined,'secondary create-record');create.innerHTML=icon('plus');create.append(node('span','Nuovo '+target.table));create.onclick=()=>this.onRecordAction('create',target,{});createActions.append(create);}
+    for(const target of result?.recordTargets||[]){if(this.readOnly||!target.canInsert)continue;const create=node('button',undefined,'secondary create-record');create.innerHTML=icon('plus');create.append(node('span','Nuovo '+target.table));create.onclick=()=>this.onRecordAction('create',target,{});createActions.append(create);}
     this.root.querySelector('.record-help').hidden=!(result?.recordTargets||[]).some(target=>!target.keyComplete);
     this.root.querySelector('.snapshot-notice').hidden=!result?.snapshotNotice;
     const data = this.getExport();
@@ -169,7 +171,7 @@ export class ResultsView {
     details.append(summary);
     if(full)details.append(values);
     const references=recordReferences(result,row);
-    if(references.length){
+    if(references.length&&!this.readOnly){
       const actions=node('div',undefined,'record-actions');
       for(const reference of references){
         const suffix=references.length>1?' '+reference.target.table:'';

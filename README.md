@@ -6,7 +6,7 @@ App Android installabile con connessione **diretta a PostgreSQL**: inserisci una
 
 [Scarica APK Android](https://danielperrella.github.io/psql-mobile/psql-mobile.apk) · [Pagina e demo web](https://danielperrella.github.io/psql-mobile/)
 
-L'APK 1.3.0 usa una **firma release stabile**, per Android 8.0/API 26 o successivo. Per il passaggio dalle vecchie build debug occorre disinstallare la versione precedente una sola volta. Gli aggiornamenti successivi mantengono i dati dell’app. Non è una pubblicazione sul Play Store.
+Dalla versione 1.3.0 l'APK usa una **firma release stabile**, per Android 8.0/API 26 o successivo. Per il passaggio dalle vecchie build debug occorre disinstallare la versione precedente una sola volta. Gli aggiornamenti successivi mantengono i dati dell’app. Non è una pubblicazione sul Play Store.
 
 All’avvio trovi **Le tue connessioni**: scegli un database salvato oppure aggiungine uno. Nome, stringa, credenziali e TLS vengono conservati cifrati con AES-256-GCM e una chiave non esportabile nell’Android Keystore. Puoi modificare o rimuovere le connessioni e scegliere di non salvare una nuova connessione. Chiudere una sessione non cancella il profilo. Disinstallazione o cancellazione dati rimuovono i profili.
 
@@ -30,6 +30,14 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 - Dopo il salvataggio vengono aggiornati i campi dei record caricati che corrispondono alla chiave primaria; un nuovo record viene mostrato in un risultato separato. Le query originali non vengono rieseguite automaticamente: per ricalcolare join, filtri, ordinamento o espressioni usa una SELECT. Le transazioni SQL già aperte devono essere chiuse prima di utilizzare il modulo.
 - Timeout connessione 10 s, query 15 s, socket 20 s. Sessione inattiva chiusa dopo 30 minuti e alla distruzione dell'Activity. La rotazione ricrea la sessione: è necessario riconnettersi.
 - Ogni risultato visualizza al massimo 1.000 righe; le celle oltre 64 Ki caratteri e i risultati oltre 2 milioni di caratteri sono troncati e segnalati. Lo schema è limitato a 10.000 colonne. Usa `LIMIT` per query molto grandi. I valori sono restituiti come testo per conservare precisione numerica e date.
+
+## Funzioni introdotte nella 1.5.0
+
+- **Filtri e ordinamento** nello schema: scegli colonne, confronti o NULL e applica la query senza scrivere SQL. La selezione della tabella non esegue query; limite e offset permettono di leggere pagine successive.
+- **Sola lettura** nelle impostazioni delle connessioni Android, salvata nel profilo cifrato. Nasconde le azioni di modifica e protegge le query con transazioni PostgreSQL read-only e un controllo dei comandi SQL. I comandi transazionali o di impostazione e gli script con scritture sono rifiutati in questa modalità. È una precauzione dell’app: per limitare i permessi del ruolo anche da altri programmi occorre configurarli in PostgreSQL.
+- **Duplica record** nel dettaglio: apre una creazione precompilata, senza copiare chiavi primarie, identity o campi generati. Nessun inserimento avviene prima di premere Crea record; eventuali chiavi obbligatorie senza default vanno compilate.
+- **Record collegati** nel dettaglio: elenca le FK che puntano al record e apre pagine da 25 figli, incluse relazioni composite e FK verso UNIQUE. Il padre viene riletto tramite PK e le letture rispettano permessi e RLS. Indietro conserva il risultato originale e il filtro.
+- **Preferiti** per tabelle e record, separati per connessione salvata. L’APK cifra soltanto metadati e PK nell’Android Keystore, senza memorizzare interi record. Le tabelle preferite preparano una SELECT; i record vengono riletti con i permessi attuali. La demo web usa localStorage soltanto per i propri preferiti di esempio.
 
 ## Architettura Android
 

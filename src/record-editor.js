@@ -1,6 +1,7 @@
 import {displayValue,recordTitle} from './results-view.js';
 import {temporalField,temporalValue,validOffset,sameTemporalValue} from './temporal-fields.js';
 import {fieldType,fieldError} from './field-types.js';
+import {duplicateRecordInitialValues} from './duplicate-record.js';
 
 const node=(tag,text,className)=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;return element;};
 const option=(value,text)=>{const result=node('option',text);result.value=value;return result;};
@@ -32,8 +33,8 @@ export class RecordEditor {
   close(){this.sequence++;this.closeLookup();this.dialog.close();this.dialog.querySelector('.editor-fields').replaceChildren();this.inputs=new Map();this.loaded=null;}
   closeLookup(){clearTimeout(this.searchTimer);this.lookupSequence=(this.lookupSequence||0)+1;this.lookup.close();this.lookup.querySelector('.lookup-items').replaceChildren();}
   async open(mode,target,keys={}){
-    this.close();this.mode=mode;this.target={schema:target.schema,table:target.table};this.keys=keys;this.inputs=new Map();this.groups=[];this.loading=true;
-    this.dialog.querySelector('.editor-kind').textContent=mode==='create'?'Nuovo record':mode==='delete'?'Elimina record':'Modifica record';
+    this.close();this.duplicating=mode==='duplicate';this.initialValues=null;this.mode=this.duplicating?'create':mode;this.target={schema:target.schema,table:target.table};this.keys=keys;this.inputs=new Map();this.groups=[];this.loading=true;
+    this.dialog.querySelector('.editor-kind').textContent=this.duplicating?'Duplica record':mode==='create'?'Nuovo record':mode==='delete'?'Elimina record':'Modifica record';
     this.dialog.querySelector('#recordEditorTitle').textContent=target.table;
     this.dialog.querySelector('.editor-context').textContent=target.schema+' · Caricamento dei campi…';
     this.dialog.querySelector('.editor-error').textContent='';this.dialog.querySelector('.discard-changes').hidden=true;
@@ -42,6 +43,7 @@ export class RecordEditor {
       const response=await this.api(mode==='create'?'/records/describe':'/records/open',{target:this.target,keys});
       if(sequence!==this.sequence)return;
       this.loaded=mode==='create'?{definition:response,row:{}}:response;
+      if(this.duplicating){this.initialValues=duplicateRecordInitialValues(response);this.loaded={definition:response.definition,row:Object.fromEntries(Object.entries(this.initialValues).filter(([,value])=>value.mode==='value').map(([name,state])=>[name,state.value]))};}
       this.render();
     }catch(error){if(sequence===this.sequence)this.dialog.querySelector('.editor-error').textContent=error.message;}
     finally{if(sequence===this.sequence){this.loading=false;this.setBusy(false);}}
@@ -55,7 +57,7 @@ export class RecordEditor {
   render(){
     const {definition:d,row}=this.loaded,create=this.mode==='create',deleting=this.mode==='delete';
     const root=this.dialog.querySelector('.editor-fields');root.replaceChildren();this.inputs=new Map();this.groups=[];
-    this.dialog.querySelector('.editor-context').textContent=deleting?'Eliminare definitivamente questo record? Verranno applicate anche le regole del database sui record collegati.':d.schema+' · '+(create?'Scegli i valori del nuovo record.':'I campi sono stati riletti dal database.');
+    this.dialog.querySelector('.editor-context').textContent=deleting?'Eliminare definitivamente questo record? Verranno applicate anche le regole del database sui record collegati.':d.schema+' · '+(this.duplicating?'Controlla la copia e completa eventuali nuove chiavi. Il record originale resta invariato.':create?'Scegli i valori del nuovo record.':'I campi sono stati riletti dal database.');
     const save=this.dialog.querySelector('.editor-save');save.textContent=deleting?'Elimina definitivamente':create?'Crea record':'Salva modifiche';save.classList.toggle('danger',deleting);
     if(deleting){
       root.append(node('strong',recordTitle(row,d.columns.map(column=>column.name)).text.slice(0,160),'delete-record-name'));
@@ -69,7 +71,7 @@ export class RecordEditor {
       const mode=node('select');mode.setAttribute('aria-label','Modalità '+column.name);mode.append(option('value','Valore'));
       if(column.nullable)mode.append(option('null','NULL · nessun valore'));
       if(column.hasDefault)mode.append(option('default','Valore predefinito'));
-      mode.value=create?(column.hasDefault||column.generated?'default':column.nullable?'null':'value'):(row[column.name]==null?'null':'value');
+      mode.value=this.initialValues?.[column.name]?.mode??(create?(column.hasDefault||column.generated?'default':column.nullable?'null':'value'):(row[column.name]==null?'null':'value'));
       if(![...mode.options].some(choice=>choice.value===mode.value))mode.value='value';
       const spec=fieldType(column);
       let value,offset,offsetLabel,fraction,fractionLabel,temporal=temporalField(column.baseType||column.type,row[column.name]);
@@ -90,7 +92,7 @@ export class RecordEditor {
       if(value.tagName==='SELECT'&&!value.value&&value.options.length)value.selectedIndex=0;
       const initial={mode:mode.value};if(initial.mode==='value')initial.value=temporal?temporalValue(temporal,value.value):value.value;
       const control={column,wrapper,mode,value,writable,temporal,offset,fraction,initial:JSON.stringify(initial)};this.inputs.set(column.name,control);
-      const sync=()=>{value.disabled=!writable||mode.value!=='value';mode.disabled=!writable;if(temporal)value.required=writable&&mode.value==='value';if(fraction)fraction.disabled=value.disabled;if(offset){offset.disabled=value.disabled;offset.required=!offset.disabled;offset.setCustomValidity(validOffset(offset.value)?'':'Usa Z o uno scostamento UTC come +02:00 o -05:30.');}this.updateGroups();};
+      const sync=()=>{value.disabled=!writable||mode.value!=='value';mode.disabled=!writable;if(temporal||this.duplicating&&(d.primaryKey||[]).includes(column.name))value.required=writable&&mode.value==='value';if(fraction)fraction.disabled=value.disabled;if(offset){offset.disabled=value.disabled;offset.required=!offset.disabled;offset.setCustomValidity(validOffset(offset.value)?'':'Usa Z o uno scostamento UTC come +02:00 o -05:30.');}this.updateGroups();};
       if(offset)offset.oninput=sync;
       mode.onchange=()=>{value.setCustomValidity('');sync();};value.oninput=()=>{value.setCustomValidity('');this.updateGroups();};sync();
       wrapper.append(label,hint);

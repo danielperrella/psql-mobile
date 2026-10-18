@@ -21,7 +21,7 @@ final class RecordService {
             s.setString(1,schema);s.setString(2,name);
             try(ResultSet r=s.executeQuery()){
                 if(!r.next()||!Arrays.asList("r","p").contains(r.getString(2)))throw new IllegalArgumentException("La modifica è disponibile per le tabelle del database, non per viste o espressioni.");
-                return new JSONObject().put("schema",schema).put("table",name).put("oid",r.getString(1)).put("canInsert",r.getBoolean(3)).put("canUpdate",r.getBoolean(4)).put("canDelete",r.getBoolean(5));
+                return new JSONObject().put("schema",schema).put("table",name).put("oid",r.getString(1)).put("canInsert",r.getBoolean(3)&&!c.isReadOnly()).put("canUpdate",r.getBoolean(4)&&!c.isReadOnly()).put("canDelete",r.getBoolean(5)&&!c.isReadOnly());
             }
         }
     }
@@ -60,7 +60,7 @@ final class RecordService {
                 boolean generated=!r.getString(6).isEmpty()||r.getString(5).equals("a");
                 JSONObject column=new JSONObject().put("name",r.getString(1)).put("type",r.getString(2)).put("nullable",r.getBoolean(3))
                     .put("hasDefault",r.getBoolean(4)||!r.getString(5).isEmpty()).put("generated",generated).put("category",r.getString(7))
-                    .put("canInsert",r.getBoolean(9)&&!generated).put("canUpdate",r.getBoolean(10)&&!generated).put("baseType",r.getString(11));
+                    .put("canInsert",r.getBoolean(9)&&!generated&&!c.isReadOnly()).put("canUpdate",r.getBoolean(10)&&!generated&&!c.isReadOnly()).put("baseType",r.getString(11)).put("identity",!r.getString(5).isEmpty());
                 if(r.getString(7).equals("E")){
                     JSONArray choices=new JSONArray();try(PreparedStatement e=statement(c,"SELECT enumlabel FROM pg_catalog.pg_enum WHERE enumtypid=?::oid ORDER BY enumsortorder")){
                         e.setString(1,r.getString(8));try(ResultSet enums=e.executeQuery()){while(enums.next())choices.put(enums.getString(1));}

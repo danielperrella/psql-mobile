@@ -53,7 +53,8 @@ final class ConnectionStore {
                 JSONObject profile=read(id);
                 profiles.put(new JSONObject().put("id",id).put("name",profile.getString("name"))
                     .put("host",profile.getString("host")).put("database",profile.getString("database"))
-                    .put("user",profile.getString("user")));
+                    .put("user",profile.getString("user")).put("readOnly",profile.optJSONObject("config")!=null
+                        &&profile.optJSONObject("config").optBoolean("readOnly",false)));
             } catch (IllegalStateException e) {
                 profiles.put(new JSONObject().put("id",id).put("name","Connessione non leggibile").put("unreadable",true));
             }
@@ -73,6 +74,7 @@ final class ConnectionStore {
         JSONObject config=new JSONObject();
         for(String field:new String[]{"connectionString","host","port","database","user","password","ssl"})
             if(input.has(field))config.put(field,input.get(field));
+        config.put("readOnly",input.optBoolean("readOnly",false));
         if(config.has("connectionString"))config.put("connectionString",ConnectionOptions.normalize(config.getString("connectionString")));
         JSONObject profile=new JSONObject().put("id",id).put("name",name).put("host",uri.getHost())
             .put("database",database).put("user",user).put("config",config);

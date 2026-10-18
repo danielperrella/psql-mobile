@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "1.4.2",
+  "versionCode": 8,
+  "versionName": "1.5.0",
   "apkUrl": "https://danielperrella.github.io/psql-mobile/psql-mobile.apk",
-  "size": 2426751,
-  "sha256": "ae4990f14929dd0f8de1feb968c6a614b59862de979ba9392ce5cfe26212d171",
-  "notes": "Record senza accordion, dettaglio dalla scritta sotto, azioni a icone e conferma di eliminazione."
+  "size": 2442479,
+  "sha256": "07b5f93b140374a0b37df9756f42a1d1d817229af8990430beb2ee08217ac850",
+  "notes": "Filtri visuali, sola lettura per connessione, duplicazione dei record, relazioni inverse e preferiti."
 }

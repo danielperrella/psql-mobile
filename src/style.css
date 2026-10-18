@@ -12,6 +12,16 @@
   --green:#97d9bf;
   --error:#ffb5a8
 }
+.detail-tools{display:flex;flex-wrap:wrap;gap:10px;padding:0 24px 24px}
+.favorites-panel{margin:20px 24px}
+.detail-tools button{max-width:100%;overflow-wrap:anywhere}
+.table-browser-dialog{padding:0;max-width:680px}
+.table-browser-dialog .record-modal-header h2{font-size:22px}
+#readOnlyStatus{color:#e6c78f;font-size:11px}
+.demo-readonly{display:flex;align-items:center;gap:10px;margin-top:12px}
+.demo-readonly input{width:20px;min-height:20px;flex:0 0 20px}
+.record-heading .record-actions{max-width:88px}
+@media(max-width:820px){.detail-tools{padding-left:18px;padding-right:18px}.favorites-panel{margin-left:18px;margin-right:18px}.table-browser-dialog{max-width:none}}
 .record-actions,.result-create-actions{
   display:flex;
   flex-wrap:wrap;

@@ -1,10 +1,11 @@
 import {applyRecordChange} from './record-changes.js';
 /** A record detail keeps the original results, filters and page untouched. */
 export class RelatedRecordView {
-  constructor(dialog, load, renderRecord) {
+  constructor(dialog, load, renderRecord, decorate = () => {}) {
     this.dialog = dialog;
     this.load = load;
     this.renderRecord = renderRecord;
+    this.decorate = decorate;
     this.stack = [];
     this.request = 0;
     dialog.innerHTML = `
@@ -20,6 +21,7 @@ export class RelatedRecordView {
   }
   close() { this.request++; this.stack = [];this.dialog.querySelector('.related-content').replaceChildren();this.dialog.close(); }
   applyMutation(change){
+    for(const entry of this.stack)entry.inverseViews?.clear();
     for(const entry of this.stack)if(entry.result&&applyRecordChange(entry.result,change)){if(change.mode==='delete')entry.deleted=true;else entry.result=change.saved.result;}
     if(change.mode==='create'&&this.dialog.open)this.stack.push({reference:{targetSchema:change.target.schema,targetTable:change.target.table},result:change.saved.result});
     if(this.dialog.open)this.render();
@@ -29,8 +31,8 @@ export class RelatedRecordView {
     if (this.stack.length < 2) { this.close(); return; }
     this.stack.pop(); this.render();
   }
-  openRecord({row,fields,number,result}) {
-    this.request++;this.stack=[{local:true,number,reference:{targetSchema:result.recordTargets?.[0]?.schema||'',targetTable:result.recordTargets?.length===1?result.recordTargets[0].table:'Record'},result:{...result,fields,rows:[row]}}];
+  openRecord({row,fields,number,result}, append = false) {
+    this.request++;if(!append)this.stack=[];if(this.stack.length>=32)return;this.stack.push({local:true,number,reference:{targetSchema:result.recordTargets?.[0]?.schema||'',targetTable:result.recordTargets?.length===1?result.recordTargets[0].table:'Record'},result:{...result,fields,rows:[row]}});
     this.render();if(!this.dialog.open)this.dialog.showModal();
   }
   async open(reference) {
@@ -65,6 +67,7 @@ export class RelatedRecordView {
     if (result?.rows.length) {
       const record = this.renderRecord(result.rows[0], result.fields, entry.number||1, result);
       content.append(record);
+      this.decorate(content,entry);
       if (this.stack.length >= 32) {
         content.querySelectorAll('.relation-link').forEach(button => { button.disabled = true; });
         const limit = document.createElement('p');

@@ -12,6 +12,7 @@ public final class PostgresBridge implements AutoCloseable {
     private final WebView webView;
     private final PgDatabase database = new PgDatabase();
     private final ConnectionStore connections;
+    private final FavoritesStore favorites;
     private final AppUpdater updater;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0,
         TimeUnit.SECONDS, new ArrayBlockingQueue<>(8));
@@ -24,6 +25,7 @@ public final class PostgresBridge implements AutoCloseable {
         this.activity = activity;
         this.webView = webView;
         this.connections = new ConnectionStore(activity);
+        this.favorites = new FavoritesStore(activity);
         this.updater = updater;
         timer.scheduleWithFixedDelay(() -> {
             try { worker.execute(database::expire); } catch (RejectedExecutionException ignored) { }
@@ -35,8 +37,10 @@ public final class PostgresBridge implements AutoCloseable {
         if (payload == null || payload.length() > 3_000_000) { respond(id, null, "Richiesta troppo grande."); return; }
         try {
             (path.startsWith("/updates/")?updateWorker:worker).execute(() -> {
+                String activeSession=null;
                 try {
                     JSONObject data = new JSONObject(payload);
+                    activeSession=data.optString("session",null);
                     Object result;
                     switch (path) {
                         case "/updates/check": result=updater.check(); break;
@@ -52,6 +56,11 @@ public final class PostgresBridge implements AutoCloseable {
                             if(profile!=null)connected.put("profileId",profile.getString("id")).put("name",profile.getString("name"));
                             result=connected; break;
                         }
+                        case "/favorites/list": result=favorites.list(data.getString("context")); break;
+                        case "/favorites/save": result=favorites.save(data.getString("context"),data.getJSONObject("favorite")); break;
+                        case "/favorites/remove": favorites.remove(data.getString("context"),data.getString("id")); result=new JSONObject().put("ok",true); break;
+                        case "/inverse/list": result=InverseRelations.list(database.connection(data.getString("session")),data.getJSONObject("target"),data.getJSONObject("keys")); break;
+                        case "/inverse/read": result=InverseRelations.read(database.connection(data.getString("session")),data.getString("relationId"),data.getJSONObject("keys"),data.optInt("offset")); break;
                         case "/connections/list": result=connections.list(); break;
                         case "/connections/read": result=connections.read(data.getString("profileId")); break;
                         case "/connections/remove": connections.remove(data.getString("profileId")); result=new JSONObject().put("ok",true); break;
@@ -60,8 +69,8 @@ public final class PostgresBridge implements AutoCloseable {
                         case "/related": result = database.related(data.getString("session"), data.getString("relationId"), data.getJSONArray("values")); break;
                         case "/records/describe": result=RecordService.describe(database.connection(data.getString("session")),data.getJSONObject("target")); break;
                         case "/records/open": result=RecordService.open(database.connection(data.getString("session")),data.getJSONObject("target"),data.getJSONObject("keys"),false); break;
-                        case "/records/save": result=RecordService.write(database.connection(data.getString("session")),data,false); break;
-                        case "/records/delete": result=RecordService.write(database.connection(data.getString("session")),data,true); break;
+                        case "/records/save": database.requireWritable(data.getString("session")); result=RecordService.write(database.connection(data.getString("session")),data,false); break;
+                        case "/records/delete": database.requireWritable(data.getString("session")); result=RecordService.write(database.connection(data.getString("session")),data,true); break;
                         case "/records/lookup": result=RecordService.lookup(database.connection(data.getString("session")),data.getString("relationId"),data.optString("search"),data.optInt("offset")); break;
                         case "/disconnect": database.disconnect(data.optString("session")); result = new JSONObject().put("ok", true); break;
                         case "/export": activity.saveCsv(id, data.getString("text")); return;
@@ -75,6 +84,8 @@ public final class PostgresBridge implements AutoCloseable {
                     respond(id, null, e.getMessage());
                 } catch (Exception | LinkageError e) {
                     respond(id, null, "Operazione non riuscita. Verifica la connessione e riconnettiti.");
+                } finally {
+                    if(activeSession!=null&&!path.startsWith("/updates/"))try{if(database.isReadOnly(activeSession))database.connection(activeSession).rollback();}catch(Exception ignored){}
                 }
             });
         } catch (RejectedExecutionException e) { respond(id, null, "Operazione già in corso. Riprova tra poco."); }

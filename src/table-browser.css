@@ -1,0 +1,29 @@
+.table-browser{width:100%;min-width:0;box-sizing:border-box}
+.table-browser *{box-sizing:border-box}
+.tb-panel{display:grid;gap:14px;width:100%;min-width:0;padding:18px;background:var(--surface,#17273a);border:1px solid var(--line,#30445b);border-radius:14px}
+.tb-heading{display:grid;gap:4px}
+.tb-title{font-size:18px;font-weight:700;letter-spacing:-.2px}
+.tb-description{margin:0;color:var(--muted,#a7b8cb);font-size:13px;line-height:1.45}
+.tb-table-row,.tb-order-row,.tb-page-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tb-label{display:grid;gap:6px;min-width:0;color:var(--muted,#a7b8cb);font-size:12px;font-weight:600}
+.tb-label select,.tb-label input,.tb-condition select,.tb-condition input{width:100%;min-width:0;max-width:100%;height:40px;padding:8px 10px;color:inherit;background:var(--raised,#20334a);border:1px solid var(--line,#30445b);border-radius:8px;font:inherit;font-size:14px}
+.tb-label select,.tb-condition select{overflow:hidden;text-overflow:ellipsis}
+.tb-conditions{display:grid;gap:9px;min-width:0}
+.tb-condition{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,1fr) auto;align-items:center;gap:7px;min-width:0}
+.tb-condition input[hidden]{display:none}
+.tb-secondary,.tb-apply,.tb-remove{min-height:38px;padding:8px 12px;border:1px solid var(--line,#30445b);border-radius:8px;background:var(--raised,#20334a);color:inherit;font:inherit;font-size:13px;cursor:pointer}
+.tb-secondary:hover,.tb-remove:hover{border-color:var(--blue,#9bc9ff)}
+.tb-remove{padding-inline:9px;color:var(--muted,#a7b8cb);white-space:nowrap}
+.tb-apply{min-height:42px;background:var(--blue,#9bc9ff);border-color:var(--blue,#9bc9ff);color:#101b2a;font-weight:700}
+.tb-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
+.tb-status{min-height:1em;margin:0;color:var(--muted,#a7b8cb);font-size:12px;overflow-wrap:anywhere}
+.tb-status:empty{display:none}
+@media(max-width:480px){
+  .tb-panel{gap:12px;padding:14px}
+  .tb-condition{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+  .tb-condition-value{grid-column:1 / 3;grid-row:2}
+  .tb-condition-value[hidden]{display:none}
+  .tb-remove{grid-column:3;grid-row:1 / 3;align-self:center}
+  .tb-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tb-actions .tb-apply{grid-column:1 / -1}
+}

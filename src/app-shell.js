@@ -9,7 +9,7 @@ export const appShell = (native, version) => `
       <button id="install" hidden>Installa</button>
       <button id="connectionButton" class="connect-button">${icon('plus')}<span>Connetti</span></button>
     </div>
-    <div class="connection-strip"><span id="status">Non connesso</span><span class="app-version">${native ? 'Android' : 'Web'} ${version}</span></div>
+    <div class="connection-strip"><span id="status">Non connesso</span><span id="readOnlyStatus" hidden>Sola lettura</span><span class="app-version">${native ? 'Android' : 'Web'} ${version}</span></div>
   </header>
   <main id="connectionHome" class="connection-home" aria-labelledby="connectionsTitle">
     <div class="home-heading"><h1 id="connectionsTitle">${native ? 'Le tue connessioni' : 'Prova Psql Mobile'}</h1><p>${native ? 'I tuoi database, pronti da riaprire.' : 'Esplora tabelle, record e relazioni direttamente dal browser.'}</p></div>
@@ -26,6 +26,7 @@ export const appShell = (native, version) => `
       <div class="panel-heading"><div><h2 id="schemaTitle">Tabelle</h2><p id="schemaCount">Esplora il database</p></div><button id="refresh" class="icon-button" aria-label="Aggiorna schema">${icon('refresh')}</button></div>
       <label class="search-label" for="filter">Cerca tabelle o colonne</label>
       <input id="filter" class="search-input" type="search" placeholder="Nome di tabella o colonna" autocomplete="off">
+      <div id="favoritesPanel"></div>
       <div id="tree" class="schema-tree"></div>
       <div class="schema-footer"><span>PostgreSQL</span><button id="disconnect" class="quiet-button" disabled>Disconnetti</button></div>
     </section>
@@ -33,7 +34,7 @@ export const appShell = (native, version) => `
       <div class="panel-heading"><div><h1 id="queryTitle">SQL</h1><p>Query completa o testo selezionato</p></div><span class="file-label">query.sql</span></div>
       <div id="editor" aria-label="Editor SQL"></div>
       <div class="query-toolbar"><span class="keyboard-hint">Ctrl / ⌘ + Invio</span><button id="run" class="primary" disabled>${icon('play')}<span>Esegui query</span></button></div>
-      <div id="demoTools" class="demo-welcome" hidden><div><h2>Database di esempio</h2><p>SELECT, WHERE con uguaglianza, ORDER BY e LIMIT. Apri una tabella per provare modifica, lookup e creazione. I dati si ripristinano ricaricando la pagina.</p></div><button id="resetDemo" class="secondary">Ripristina demo</button></div>
+      <div id="demoTools" class="demo-welcome" hidden><div><h2>Database di esempio</h2><p>Prova filtri, relazioni, duplicazione e preferiti con i dati di esempio. I dati si ripristinano ricaricando la pagina.</p><label class="demo-readonly"><input id="demoReadOnly" type="checkbox">Sola lettura nella demo</label></div><button id="resetDemo" class="secondary">Ripristina demo</button></div>
       <div id="feedback" role="status">Connetti un database per eseguire le query.</div>
       <div id="demoWelcome" class="demo-welcome"><div><h2>Vuoi provare l’interfaccia?</h2><p>Esplora ordini di esempio e il nuovo lettore di record.</p></div><button id="demo" class="secondary">Prova la demo</button></div>
     </section>
@@ -53,5 +54,6 @@ export const appShell = (native, version) => `
   <dialog id="relatedDialog" class="related-dialog" aria-labelledby="relatedTitle"></dialog>
   <dialog id="recordEditor" class="record-editor" aria-labelledby="recordEditorTitle"></dialog>
   <dialog id="lookupDialog" class="lookup-dialog" aria-labelledby="lookupTitle"></dialog>
+  <dialog id="tableBrowserDialog" class="table-browser-dialog" aria-labelledby="tableBrowserTitle"><div class="record-modal-header"><h2 id="tableBrowserTitle">Filtri e ordinamento</h2><button id="closeTableBrowser" class="secondary" type="button">Chiudi</button></div><div id="tableBrowser"></div></dialog>
   ${native ? '<dialog id="updateDialog" aria-labelledby="updateTitle"></dialog>' : ''}
 `;

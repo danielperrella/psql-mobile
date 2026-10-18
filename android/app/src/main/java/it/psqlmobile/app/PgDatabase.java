@@ -11,8 +11,9 @@ public final class PgDatabase implements AutoCloseable {
     private static final long IDLE_MS = 30 * 60 * 1000L;
     private static class Session {
         final Connection connection;
+        final boolean readOnly;
         long lastUsed = System.nanoTime();
-        Session(Connection connection) { this.connection = connection; }
+        Session(Connection connection, boolean readOnly) { this.connection = connection; this.readOnly = readOnly; }
     }
     private final Map<String,Session> sessions = new HashMap<>();
 
@@ -25,12 +26,22 @@ public final class PgDatabase implements AutoCloseable {
             // Explicit loading also works on Android, which doesn't guarantee JDBC service discovery.
             Class.forName("org.postgresql.Driver");
             connection = DriverManager.getConnection(options.jdbcUrl, options.properties);
+            boolean readOnly = input.optBoolean("readOnly", false);
             try (Statement statement = connection.createStatement()) {
                 statement.execute("SET statement_timeout = '15s'");
             }
+            if (readOnly) {
+                try (Statement statement = connection.createStatement()) {
+                    statement.execute("SET standard_conforming_strings = on");
+                }
+                // The PostgreSQL driver applies this mode to every transaction on the session.
+                // Keep autocommit disabled so every query is run in a read-only transaction.
+                connection.setReadOnly(true);
+                connection.setAutoCommit(false);
+            }
             String id = UUID.randomUUID().toString();
-            sessions.put(id, new Session(connection));
-            return new JSONObject().put("session", id);
+            sessions.put(id, new Session(connection, readOnly));
+            return new JSONObject().put("session", id).put("readOnly", readOnly);
         } catch (SQLException e) {
             if (connection != null) try { connection.close(); } catch (SQLException ignored) { }
             throw new SQLException("Connessione fallita. Verifica dati, raggiungibilità del database e impostazioni TLS.", e.getSQLState());
@@ -48,9 +59,27 @@ public final class PgDatabase implements AutoCloseable {
         return session.connection;
     }
 
+    /** Returns whether this session is protected by PostgreSQL read-only transactions. */
+    public boolean isReadOnly(String id) throws SQLException {
+        session(id);
+        return sessions.get(id).readOnly;
+    }
+
+    /** Rejects record writes before reaching RecordService. Call for every record mutation endpoint. */
+    public void requireWritable(String id) throws SQLException {
+        if (isReadOnly(id)) throw new SQLException("Connessione in sola lettura: le modifiche ai record sono disabilitate.", "25006");
+    }
+
+    private Session session(String id) throws SQLException {
+        connection(id);
+        return sessions.get(id);
+    }
+
     public JSONArray schema(String id) throws Exception {
         JSONArray columns = new JSONArray();
-        try (Statement statement = connection(id).createStatement()) {
+        Connection connection = connection(id);
+        boolean readOnly = isReadOnly(id);
+        try (Statement statement = connection.createStatement()) {
             statement.setQueryTimeout(15);
             statement.setMaxRows(10000);
             try (ResultSet result = statement.executeQuery("SELECT table_schema,table_name,column_name,data_type FROM information_schema.columns WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema,table_name,ordinal_position")) {
@@ -58,14 +87,16 @@ public final class PgDatabase implements AutoCloseable {
                     .put("table_schema", result.getString(1)).put("table_name", result.getString(2))
                     .put("column_name", result.getString(3)).put("data_type", result.getString(4)));
             }
-        }
+        } finally { if(readOnly)try{connection.rollback();}catch(SQLException ignored){} }
         return columns;
     }
 
     public JSONObject query(String id, String sql) throws Exception {
         if (sql == null || sql.trim().isEmpty()) throw new IllegalArgumentException("Query vuota.");
         if (sql.length() > 65536) throw new IllegalArgumentException("Query troppo lunga (massimo 64 KB).");
-        return execute(connection(id), sql, null);
+        Session session = session(id);
+        if (session.readOnly) ReadOnlyPolicy.requireReadOnlySql(sql);
+        return execute(session.connection, sql, null, session.readOnly);
     }
 
     public JSONObject related(String id, String relationId, JSONArray values) throws Exception {
@@ -81,13 +112,14 @@ public final class PgDatabase implements AutoCloseable {
         }
         String sql="SELECT * FROM "+RelationCatalog.quote(relation.getString("targetSchema"))+"."
             +RelationCatalog.quote(relation.getString("targetTable"))+" WHERE "+String.join(" AND ",predicates)+" LIMIT 2";
-        JSONObject result=execute(connection,sql,values);
+        Session session = session(id);
+        JSONObject result=execute(connection,sql,values,session.readOnly);
         if (result.getJSONArray("results").getJSONObject(0).getJSONArray("rows").length()>1)
             throw new IllegalStateException("Relazione ambigua: sono stati trovati più record.");
         return result.put("targetSchema",relation.getString("targetSchema")).put("targetTable",relation.getString("targetTable"));
     }
 
-    private JSONObject execute(Connection connection, String sql, JSONArray values) throws Exception {
+    private JSONObject execute(Connection connection, String sql, JSONArray values, boolean readOnly) throws Exception {
         long started = System.nanoTime();
         JSONArray results = new JSONArray();
         int budget = MAX_RESULT_CHARS;
@@ -144,8 +176,23 @@ public final class PgDatabase implements AutoCloseable {
                 if (results.length() >= 100) throw new IllegalArgumentException("Massimo 100 risultati per esecuzione: suddividi lo script.");
                 hasRows = statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);
             } while (hasRows || statement.getUpdateCount() != -1);
+        } finally {
+            // Close the transaction promptly; the next statement starts another read-only one.
+            if (readOnly) try { connection.rollback(); } catch (SQLException ignored) { }
         }
-        return new JSONObject().put("results", results).put("ms", (System.nanoTime() - started) / 1_000_000);
+        JSONObject response = new JSONObject().put("results", results).put("ms", (System.nanoTime() - started) / 1_000_000);
+        if (readOnly) {
+            JSONArray entries = response.getJSONArray("results");
+            for (int i=0;i<entries.length();i++) {
+                JSONObject entry=entries.getJSONObject(i);
+                JSONArray targets=entry.optJSONArray("recordTargets");
+                if (targets!=null) for (int j=0;j<targets.length();j++) {
+                    JSONObject target=targets.getJSONObject(j);
+                    target.put("canInsert",false).put("canUpdate",false).put("canDelete",false);
+                }
+            }
+        }
+        return response;
     }
 
     public void disconnect(String id) {
