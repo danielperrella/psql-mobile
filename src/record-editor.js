@@ -1,4 +1,6 @@
 import {displayValue} from './results-view.js';
+import {temporalField,temporalValue,validOffset,sameTemporalValue} from './temporal-fields.js';
+import {fieldType,fieldError} from './field-types.js';
 
 const node=(tag,text,className)=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;return element;};
 const option=(value,text)=>{const result=node('option',text);result.value=value;return result;};
@@ -22,7 +24,7 @@ export class RecordEditor {
   }
   changes(){
     const changes={};for(const [name,control]of this.inputs||[]){
-      if(!control.writable)continue;const value={mode:control.mode.value};if(value.mode==='value')value.value=control.value.value;
+      if(!control.writable)continue;const value={mode:control.mode.value};if(value.mode==='value')value.value=control.lookupValue??(control.temporal?temporalValue(control.temporal,control.value.value,control.offset?.value??control.temporal.offset,control.fraction?.value??control.temporal.fraction):control.value.value);
       if(this.mode==='create'||JSON.stringify(value)!==control.initial)changes[name]=value;
     }return changes;
   }
@@ -64,19 +66,32 @@ export class RecordEditor {
       if(column.hasDefault)mode.append(option('default','Valore predefinito'));
       mode.value=create?(column.hasDefault||column.generated?'default':column.nullable?'null':'value'):(row[column.name]==null?'null':'value');
       if(![...mode.options].some(choice=>choice.value===mode.value))mode.value='value';
-      let value;
-      if(column.category==='B'||column.choices?.length){value=node('select');for(const choice of column.choices||['true','false'])value.append(option(choice,choice));}
-      else{value=node('textarea');value.rows=column.type.includes('json')?4:2;value.spellcheck=false;value.autocapitalize='none';}
+      const spec=fieldType(column);
+      let value,offset,offsetLabel,fraction,fractionLabel,temporal=temporalField(column.baseType||column.type,row[column.name]);
+      if(temporal){value=node('input');value.type=temporal.fallback?'text':temporal.kind;value.step='1';value.value=temporal.value;
+        // Older WebViews may reject microseconds or extended years. Keep a text editor
+        // instead of silently emptying/truncating a valid PostgreSQL value.
+        if(!sameTemporalValue(value.value,temporal.value)){temporal={...temporal,fallback:true,value:temporal.original};value.type='text';value.value=temporal.original;}
+        else temporal={...temporal,value:value.value};
+        if(!temporal.fallback&&temporal.kind!=='date'){fractionLabel=node('label','Frazione di secondo (fino a 6 cifre)','temporal-offset');fraction=node('input');fraction.type='text';fraction.inputMode='numeric';fraction.pattern='[0-9]{0,6}';fraction.maxLength=6;fraction.value=temporal.fraction;fraction.placeholder='000000';fraction.setAttribute('aria-label','Frazione di secondo '+column.name);fractionLabel.append(fraction);}
+        if(!temporal.fallback&&temporal.kind!=='time'){value.min=temporal.kind==='date'?'0001-01-01':'0001-01-01T00:00';value.max=temporal.kind==='date'?'9999-12-31':'9999-12-31T23:59:59.999999';}
+        if(temporal.zoned&&!temporal.fallback){offsetLabel=node('label','Scostamento UTC per '+column.name,'temporal-offset');offset=node('input');offset.type='text';offset.value=temporal.offset;offset.placeholder='+02:00';offset.setAttribute('aria-label','Scostamento UTC '+column.name);offsetLabel.append(offset);}
+      }
+      else if(column.category==='B'||column.choices?.length){value=node('select');for(const choice of column.choices||['true','false'])value.append(option(choice,choice));}
+      else{value=node('textarea');value.rows=spec.kind==='json'?4:2;value.spellcheck=false;value.autocapitalize='none';if(spec.inputMode)value.inputMode=spec.inputMode;if(spec.placeholder)value.placeholder=spec.placeholder;}
       value.id='edit-field-'+this.inputs.size;label.htmlFor=value.id;value.setAttribute('aria-label',column.name);
-      value.value=row[column.name]==null?'':typeof row[column.name]==='object'?JSON.stringify(row[column.name],null,2):String(row[column.name]);
+      if(!temporal)value.value=row[column.name]==null?'':typeof row[column.name]==='object'?JSON.stringify(row[column.name],null,2):String(row[column.name]);
       if(column.category==='B'&&row[column.name]!=null)value.value=['t','true'].includes(String(row[column.name]))?'true':'false';
       if(value.tagName==='SELECT'&&!value.value&&value.options.length)value.selectedIndex=0;
-      const initial={mode:mode.value};if(initial.mode==='value')initial.value=value.value;
-      const control={column,wrapper,mode,value,writable,initial:JSON.stringify(initial)};this.inputs.set(column.name,control);
-      const sync=()=>{value.disabled=!writable||mode.value!=='value';mode.disabled=!writable;this.updateGroups();};
-      mode.onchange=sync;value.oninput=()=>this.updateGroups();sync();
+      const initial={mode:mode.value};if(initial.mode==='value')initial.value=temporal?temporalValue(temporal,value.value):value.value;
+      const control={column,wrapper,mode,value,writable,temporal,offset,fraction,initial:JSON.stringify(initial)};this.inputs.set(column.name,control);
+      const sync=()=>{value.disabled=!writable||mode.value!=='value';mode.disabled=!writable;if(temporal)value.required=writable&&mode.value==='value';if(fraction)fraction.disabled=value.disabled;if(offset){offset.disabled=value.disabled;offset.required=!offset.disabled;offset.setCustomValidity(validOffset(offset.value)?'':'Usa Z o uno scostamento UTC come +02:00 o -05:30.');}this.updateGroups();};
+      if(offset)offset.oninput=sync;
+      mode.onchange=()=>{value.setCustomValidity('');sync();};value.oninput=()=>{value.setCustomValidity('');this.updateGroups();};sync();
       wrapper.append(label,hint);
       if(writable)wrapper.append(mode,value);else wrapper.append(node('pre',create?'Automatico':displayValue(row[column.name])),node('small','Campo in sola lettura'));
+      if(writable&&temporal){if(fractionLabel)wrapper.append(fractionLabel);if(offsetLabel)wrapper.append(offsetLabel);wrapper.append(node('small',temporal.fallback?'Valore PostgreSQL speciale o non supportato dal calendario: modifica il testo originale.':temporal.zoned?'Data e ora nel fuso indicato dallo scostamento UTC. Nessuna conversione automatica.':temporal.kind==='date'?'Scegli una data dal calendario.':'Ora senza fuso orario. I secondi e le frazioni vengono conservati.'));}
+      else if(writable)wrapper.append(node('small',spec.hint));
     }
     if(!deleting){
       const covered=new Set();
@@ -99,7 +114,7 @@ export class RecordEditor {
       this.dialog.querySelector('.editor-error').textContent='La connessione non ha i permessi per questa operazione.';this.loaded=null;
     }
   }
-  updateGroups(){for(const group of this.groups||[]){if(!group.relation.sourceColumns.every(name=>this.inputs.get(name).mode.value==='value'))group.label=null;const values=group.relation.sourceColumns.map(name=>{const input=this.inputs.get(name);return name+': '+(input.mode.value==='value'?(input.value.value||'Stringa vuota'):input.mode.value==='null'?'NULL':'Predefinito');});group.selected.textContent=this.mode==='create'&&!group.label&&group.relation.sourceColumns.every(name=>!this.inputs.get(name).value.value)?'Nessun record selezionato':values.join(' · ');if(group.label)group.selected.textContent=group.label+' · '+values.join(' · ');}}
+  updateGroups(){for(const group of this.groups||[]){if(!group.relation.sourceColumns.every(name=>this.inputs.get(name).mode.value==='value'))group.label=null;const values=group.relation.sourceColumns.map(name=>{const input=this.inputs.get(name);return name+': '+(input.mode.value==='value'?((input.lookupValue??input.value.value)||'Stringa vuota'):input.mode.value==='null'?'NULL':'Predefinito');});group.selected.textContent=this.mode==='create'&&!group.label&&group.relation.sourceColumns.every(name=>!this.inputs.get(name).value.value)?'Nessun record selezionato':values.join(' · ');if(group.label)group.selected.textContent=group.label+' · '+values.join(' · ');}}
   openLookup(relation){if(this.loading)return;this.relation=relation;this.offset=0;this.lookup.querySelector('#lookupTitle').textContent='Scegli '+relation.targetTable;this.lookup.querySelector('input').value='';this.lookup.showModal();this.search(0);}
   async search(offset){
     clearTimeout(this.searchTimer);this.offset=offset;const sequence=this.lookupSequence=(this.lookupSequence||0)+1;
@@ -110,7 +125,7 @@ export class RecordEditor {
       if(sequence!==this.lookupSequence||!this.lookup.open)return;
       status.textContent=response.items.length?'Tocca il record da collegare.':'Nessun record trovato. Prova un altro valore.';
       for(const item of response.items){const select=node('button',undefined,'lookup-item');select.type='button';select.append(node('strong',item.label),node('small',item.detail));select.onclick=()=>{
-        this.relation.sourceColumns.forEach((name,index)=>{const control=this.inputs.get(name);control.mode.value='value';control.value.value=item.values[index];});
+        this.relation.sourceColumns.forEach((name,index)=>{const control=this.inputs.get(name);control.mode.value='value';control.lookupValue=String(item.values[index]);control.value.value=item.values[index];});
         const group=this.groups.find(group=>group.relation===this.relation);if(group)group.label=item.label;
         this.updateGroups();this.closeLookup();
       };list.append(select);}
@@ -119,7 +134,9 @@ export class RecordEditor {
     }catch(error){if(sequence===this.lookupSequence)status.textContent=error.message;}
   }
   async save(){
-    if(this.loading||!this.loaded)return;this.setBusy(true);const error=this.dialog.querySelector('.editor-error');error.textContent='';
+    if(this.loading||!this.loaded)return;
+    for(const control of this.inputs.values())if(control.writable&&!control.temporal&&control.mode.value==='value'&&control.lookupValue===undefined)control.value.setCustomValidity(fieldError(control.column,control.value.value));
+    if(!this.form.reportValidity())return;this.setBusy(true);const error=this.dialog.querySelector('.editor-error');error.textContent='';
     const change={mode:this.mode,target:this.target,keys:this.loaded.keys||{},version:this.loaded.version,values:this.changes()};
     try{
       const saved=await this.api(this.mode==='delete'?'/records/delete':'/records/save',change);

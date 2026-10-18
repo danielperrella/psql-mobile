@@ -55,12 +55,12 @@ final class RecordService {
     static JSONObject describe(Connection c,JSONObject target)throws Exception{
         JSONObject d=tableInfo(c,target.getString("schema"),target.getString("table"));
         JSONArray columns=new JSONArray();
-        try(PreparedStatement s=statement(c,"SELECT a.attname,format_type(a.atttypid,a.atttypmod),NOT a.attnotnull,a.atthasdef,a.attidentity,a.attgenerated,t.typcategory,t.oid::text,has_column_privilege(a.attrelid,a.attnum,'INSERT'),has_column_privilege(a.attrelid,a.attnum,'UPDATE') FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.oid=a.atttypid WHERE a.attrelid=?::oid AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum")){
+        try(PreparedStatement s=statement(c,"SELECT a.attname,format_type(a.atttypid,a.atttypmod),NOT (a.attnotnull OR b.required),(a.atthasdef OR b.hasdefault),a.attidentity,a.attgenerated,b.typcategory,b.oid::text,has_column_privilege(a.attrelid,a.attnum,'INSERT'),has_column_privilege(a.attrelid,a.attnum,'UPDATE'),format_type(b.oid,-1) FROM pg_catalog.pg_attribute a JOIN LATERAL (WITH RECURSIVE bases AS (SELECT oid,typbasetype,typcategory,typnotnull,typdefault FROM pg_catalog.pg_type WHERE oid=a.atttypid UNION ALL SELECT t.oid,t.typbasetype,t.typcategory,t.typnotnull,t.typdefault FROM pg_catalog.pg_type t JOIN bases ON t.oid=bases.typbasetype) SELECT oid,typcategory,(SELECT bool_or(typnotnull) FROM bases) AS required,(SELECT bool_or(typdefault IS NOT NULL) FROM bases) AS hasdefault FROM bases WHERE typbasetype=0) b ON true WHERE a.attrelid=?::oid AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum")){
             s.setString(1,d.getString("oid"));try(ResultSet r=s.executeQuery()){while(r.next()){
                 boolean generated=!r.getString(6).isEmpty()||r.getString(5).equals("a");
                 JSONObject column=new JSONObject().put("name",r.getString(1)).put("type",r.getString(2)).put("nullable",r.getBoolean(3))
                     .put("hasDefault",r.getBoolean(4)||!r.getString(5).isEmpty()).put("generated",generated).put("category",r.getString(7))
-                    .put("canInsert",r.getBoolean(9)&&!generated).put("canUpdate",r.getBoolean(10)&&!generated);
+                    .put("canInsert",r.getBoolean(9)&&!generated).put("canUpdate",r.getBoolean(10)&&!generated).put("baseType",r.getString(11));
                 if(r.getString(7).equals("E")){
                     JSONArray choices=new JSONArray();try(PreparedStatement e=statement(c,"SELECT enumlabel FROM pg_catalog.pg_enum WHERE enumtypid=?::oid ORDER BY enumsortorder")){
                         e.setString(1,r.getString(8));try(ResultSet enums=e.executeQuery()){while(enums.next())choices.put(enums.getString(1));}

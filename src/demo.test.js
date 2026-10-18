@@ -27,7 +27,7 @@ test('demo CRUD validates atomically, handles JSON, searches lookups, and restor
   await assert.rejects(demoRecords('/records/save',{...update,values:{note:{mode:'value',value:'must not save'},cliente_id:{mode:'value',value:'9999'}}}));
   assert.equal((await demoRecords('/records/open',{target,keys:opened.keys})).row.note,opened.row.note);
   const saved=await demoRecords('/records/save',{...update,values:{cliente_id:{mode:'value',value:'203'},metadata:{mode:'value',value:'{"canale":"test"}'}}});
-  assert.deepEqual(saved.row.metadata,{canale:'test'});
+  assert.deepEqual(JSON.parse(saved.row.metadata),{canale:'test'});
   await assert.rejects(demoRecords('/records/save',{...update,values:{note:{mode:'null'}}}),/cambiato/);
   assert.equal((await demoRelated({relationId:'demo-customer',values:[saved.row.cliente_id]})).results[0].rows[0].nome,'Sofia Conti');
   assert.equal((await demoRecords('/records/lookup',{relationId:'demo-customer',search:'sofia',offset:0})).items[0].values[0],'203');

@@ -142,6 +142,23 @@ public class AppFlowTest {
             assertEquals("false", evaluate(view, "document.querySelector('#queryPanel').hidden"));
         } finally { instrumentation.runOnMainSync(activity::finish); }
     }
+    @Test public void dateControlsSaveCalendarsOffsetsAndMicroseconds() throws Exception {
+        MainActivity activity=(MainActivity)instrumentation.startActivitySync(new Intent(instrumentation.getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            WebView view=webView(activity.getWindow().getDecorView());
+            long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+            while(!"true".equals(evaluate(view,"Boolean(document.querySelector('#demo'))"))&&System.nanoTime()<end)Thread.sleep(100);
+            evaluate(view,"document.querySelector('#demo').click();document.querySelector('[data-view=schema]').click();[...document.querySelectorAll('.schema-table')].find(e=>e.textContent.includes('aziende')).querySelector('.browse-records').click()");
+            evaluate(view,"document.querySelector('#results .record summary').click();document.querySelector('#results .edit-record').click()");
+            assertEquals("\"date\"",evaluate(view,"document.querySelector('[aria-label=data_fondazione]').type"));
+            assertEquals("\"datetime-local\"",evaluate(view,"document.querySelector('[aria-label=ultimo_contatto]').type"));
+            assertEquals("\"123456\"",evaluate(view,"document.querySelector('[aria-label=\"Frazione di secondo ultimo_contatto\"]').value"));
+            evaluate(view,"document.querySelector('[aria-label=data_fondazione]').value='2024-02-29';document.querySelector('[aria-label=ultimo_contatto]').value='2026-10-25T02:30:45';document.querySelector('[aria-label=\"Scostamento UTC ultimo_contatto\"]').value='+05:30';document.querySelector('.editor-save').click()");
+            assertEquals("false",evaluate(view,"document.querySelector('#recordEditor').open"));
+            assertEquals("true",evaluate(view,"document.querySelector('#results .record').textContent.includes('2026-10-25T02:30:45.123456+05:30')"));
+            assertEquals("true",evaluate(view,"document.documentElement.scrollWidth<=document.documentElement.clientWidth"));
+        }finally{instrumentation.runOnMainSync(activity::finish);}
+    }
     @Test public void recordModalSelectsLookupCreatesAndConfirmsDeletion() throws Exception {
         MainActivity activity=(MainActivity)instrumentation.startActivitySync(new Intent(instrumentation.getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         try {

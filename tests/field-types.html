@@ -1,0 +1,20 @@
+<!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verifica tipi PostgreSQL</title>
+<button id="edit">Modifica dati di prova</button><button id="create">Nuovo record di prova</button><pre id="saved"></pre>
+<dialog id="recordEditor" class="record-editor" aria-labelledby="recordEditorTitle"></dialog><dialog id="lookupDialog" class="lookup-dialog" aria-labelledby="lookupTitle"></dialog>
+<script type="module">
+// Dev-only fixture. Uses the production editor with disposable, in-memory values.
+import '/src/style.css';
+import {RecordEditor} from '/src/record-editor.js';
+const target={schema:'public',table:'tipi_campo'};
+const row={id:'1',intero:'9007199254740993123',importo:'9007199254740993123.123456',attivo:'t',priorita:'Alta',codice:'550e8400-e29b-41d4-a716-446655440000',dettagli:'{"id":9007199254740993123}',etichette:'{"a,b","secondo",NULL}',allegato:'\\x48656c6c6f',indirizzo:'2001:db8::1/64',durata:'2 days 03:30:00',data:'2024-02-29'};
+const types={id:'integer',intero:'bigint',importo:'numeric(30,6)',attivo:'boolean',priorita:'priorita_personalizzata',codice:'uuid',dettagli:'jsonb',etichette:'text[]',allegato:'bytea',indirizzo:'inet',durata:'interval',data:'data_personalizzata'};
+const definition={...target,canInsert:true,canDelete:true,columns:Object.keys(row).map(name=>({name,type:types[name],baseType:name==='data'?'date':types[name],category:name==='attivo'?'B':name==='priorita'?'E':name==='etichette'?'A':'S',choices:name==='priorita'?['Bassa','Alta']:undefined,nullable:name!=='id',generated:name==='id',hasDefault:name==='id',canInsert:name!=='id',canUpdate:name!=='id'})),relations:[]};
+const editor=new RecordEditor(document.querySelector('#recordEditor'),document.querySelector('#lookupDialog'),async(path,input)=>{
+  if(path==='/records/describe')return definition;
+  if(path==='/records/open')return {definition,row:{...row},keys:{id:'1'},version:'1'};
+  for(const [key,change]of Object.entries(input.values))row[key]=change.mode==='value'?change.value:null;
+  return {row:{...row}};
+},change=>{document.querySelector('#saved').textContent=JSON.stringify(change.saved.row,null,2);});
+document.querySelector('#edit').onclick=()=>editor.open('update',target,{id:'1'});
+document.querySelector('#create').onclick=()=>editor.open('create',target);
+</script></html>

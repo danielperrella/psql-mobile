@@ -1,3 +1,5 @@
+import {temporalField} from './temporal-fields.js';
+import {fieldError} from './field-types.js';
 import {selectDemo} from './demo-query.js';
 const customerRelation={id:'demo-customer',fields:['cliente_id'],sourceColumns:['cliente_id'],targetColumns:['id'],targetSchema:'public',targetTable:'clienti'};
 const companyRelation={id:'demo-company',fields:['azienda_id'],sourceColumns:['azienda_id'],targetColumns:['id'],targetSchema:'public',targetTable:'aziende'};
@@ -15,7 +17,7 @@ function initialOrders(){
 
 const names=['Elena Rossi','Luca Bianchi','Sofia Conti','Marco Moretti','Giulia Romano','Andrea Ferri'];
 const customers=names.map((nome,index)=>({id:String(201+index),nome,email:nome.toLowerCase().replace(' ','.')+'@example.com',azienda_id:'71'}));
-const company={id:'71',nome:'Studio Esempio',citta:'Milano',note:'Dati dimostrativi, nessuna connessione reale.'};
+const company={id:'71',nome:'Studio Esempio',citta:'Milano',data_fondazione:'2018-04-12',ultimo_contatto:'2026-10-18 09:30:15.123456+02',prossimo_appuntamento:'2026-10-25 14:30:00',orario_apertura:'09:00:00',note:'Dati dimostrativi, nessuna connessione reale.'};
 const orders=initialOrders()[0].rows;
 const data={ordini:orders,clienti:customers,aziende:[{...company}]};
 const versions=new WeakMap();
@@ -23,19 +25,20 @@ const relations=table=>table==='ordini'?[customerRelation]:table==='clienti'?[co
 const fields=Object.fromEntries(Object.entries(data).map(([table,rows])=>[table,Object.keys(rows[0])]));
 const sequences={ordini:1064,clienti:206,aziende:71};
 function relationTable(id){if(id==='demo-customer')return 'clienti';if(id==='demo-company')return 'aziende';throw new Error('Relazione demo non disponibile.');}
+const dataType=name=>({data_fondazione:'date',ultimo_contatto:'timestamp with time zone',prossimo_appuntamento:'timestamp without time zone',orario_apertura:'time without time zone'}[name]||(name==='metadata'?'jsonb':name==='id'||name.endsWith('_id')?'integer':'text'));
 function target(table){return {schema:'public',table,keyComplete:true,keys:[{column:'id',field:'id'}],fields:fields[table].map(field=>({column:field,field})),canInsert:true,canUpdate:true,canDelete:true};}
 function result(table,rows){return {command:'DEMO',fields:fields[table],rows:structuredClone(rows),relations:relations(table),recordTargets:[target(table)],rowCount:rows.length};}
 export function demoResults(sql='SELECT * FROM public.ordini'){return selectDemo(sql,data,result);}
 export function resetDemo(){Object.assign(sequences,{ordini:1064,clienti:206,aziende:71});orders.splice(0,orders.length,...initialOrders()[0].rows);customers.splice(0,customers.length,...names.map((nome,index)=>({id:String(201+index),nome,email:nome.toLowerCase().replace(' ','.')+'@example.com',azienda_id:'71'})));data.aziende.splice(0,data.aziende.length,{...company});}
 export function demoSchema(){
-  return Object.entries(fields).flatMap(([table_name,names])=>names.map(column_name=>({table_schema:'public',table_name,column_name,data_type:column_name==='metadata'?'jsonb':column_name==='id'||column_name.endsWith('_id')?'integer':'text'})));
+  return Object.entries(fields).flatMap(([table_name,names])=>names.map(column_name=>({table_schema:'public',table_name,column_name,data_type:dataType(column_name)})));
 }
 export async function demoRelated({relationId,values}){
   const table=relationTable(relationId);
   return {results:[result(table,data[table].filter(row=>row.id===values[0]))]};
 }
 function definition(table){
-  return {...target(table),primaryKey:['id'],columns:fields[table].map(name=>({name,type:name==='metadata'?'jsonb':name==='id'||name.endsWith('_id')?'integer':'text',category:'S',nullable:!['id','nome','cliente','cliente_id','azienda_id'].includes(name),hasDefault:name==='id',generated:name==='id',canInsert:name!=='id',canUpdate:name!=='id'})),relations:relations(table)};
+  return {...target(table),primaryKey:['id'],columns:fields[table].map(name=>({name,type:dataType(name),category:temporalField(dataType(name),null)?'D':'S',nullable:!['id','nome','cliente','cliente_id','azienda_id'].includes(name),hasDefault:name==='id',generated:name==='id',canInsert:name!=='id',canUpdate:name!=='id'})),relations:relations(table)};
 }
 function loaded(table,row){return {definition:definition(table),row:structuredClone(row),keys:{id:row.id},version:String(versions.get(row)||0),result:result(table,[row])};}
 export async function demoRecords(path,input){
@@ -63,9 +66,7 @@ export async function demoRecords(path,input){
     if(change.mode==='value')candidate[name]=change.value;
     else if(change.mode==='null')candidate[name]=null;
     else throw new Error('Valore demo non disponibile per '+name);
-    if(name==='metadata'&&candidate[name]!=null&&typeof candidate[name]==='string'){
-      try{candidate[name]=JSON.parse(candidate[name]);}catch{throw new Error('metadata: inserisci un JSON valido.');}
-    }
+    if(candidate[name]!=null){const error=fieldError(columns.find(column=>column.name===name),candidate[name]);if(error)throw new Error(name+': '+error);}
   }
   for(const column of columns)if(column.name!=='id'&&!column.nullable&&(candidate[column.name]==null||candidate[column.name]===''))throw new Error('Compila il campo '+column.name+'.');
   for(const relation of relations(table))if(!data[relation.targetTable].some(record=>record.id===String(candidate[relation.sourceColumns[0]])))throw new Error('Seleziona un record valido per '+relation.sourceColumns[0]+'.');

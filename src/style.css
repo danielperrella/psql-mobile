@@ -111,6 +111,21 @@
 .edit-field>textarea:disabled{
   opacity:.45
 }
+.edit-field>input,.temporal-offset input{
+  display:block;
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  font-size:16px
+}
+.edit-field>.temporal-offset{
+  display:block;
+  margin-top:12px;
+  font-size:12px;
+  color:var(--muted)
+}
+.temporal-offset input{margin-top:6px}
 .lookup-field{
   margin:0;
   padding:18px;
@@ -543,7 +558,7 @@ summary::-webkit-details-marker{
 details[open]>summary .table-chevron,details[open]>summary .record-chevron{
   transform:rotate(90deg)
 }
-.prepare-query{
+.prepare-query,.browse-records{
   width:100%;
   margin:0 0 8px;
   color:var(--blue)

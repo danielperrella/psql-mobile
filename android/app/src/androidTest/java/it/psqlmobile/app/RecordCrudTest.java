@@ -9,6 +9,54 @@ import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public class RecordCrudTest {
+    @Test public void postgresTypesDomainsEnumsAndExactNumbersRemainEditable()throws Exception{
+        String uri=InstrumentationRegistry.getArguments().getString("postgresUri");assertNotNull(uri);
+        try(PgDatabase db=new PgDatabase()){
+            String session=db.connect(new JSONObject().put("connectionString",uri)).getString("session");java.sql.Connection c=db.connection(session);
+            db.query(session,"CREATE TYPE pg_temp.priority AS ENUM ('Bassa','Alta'); CREATE DOMAIN pg_temp.priority_domain AS pg_temp.priority NOT NULL DEFAULT 'Bassa'; CREATE DOMAIN pg_temp.date_domain AS date; CREATE DOMAIN pg_temp.nested_date AS pg_temp.date_domain;"+
+                "CREATE TEMP TABLE types_probe(id integer PRIMARY KEY,big bigint,amount numeric(30,6),enabled boolean,priority pg_temp.priority_domain,birthday pg_temp.nested_date,code uuid,payload jsonb,tags text[],blob_value bytea,ip inet,duration interval,span int4range,bits bit varying(8),doc xml,location point); INSERT INTO types_probe(id) VALUES(1)");
+            JSONObject source=db.query(session,"SELECT * FROM types_probe").getJSONArray("results").getJSONObject(0).getJSONArray("recordTargets").getJSONObject(0);
+            JSONObject table=target(source.getString("schema"),source.getString("table"));JSONObject opened=RecordService.open(c,table,new JSONObject().put("id","1"),false);
+            JSONArray columns=opened.getJSONObject("definition").getJSONArray("columns");JSONObject priority=null,birthday=null;
+            for(int i=0;i<columns.length();i++){JSONObject column=columns.getJSONObject(i);if(column.getString("name").equals("priority"))priority=column;if(column.getString("name").equals("birthday"))birthday=column;}
+            assertNotNull(priority);assertEquals("E",priority.getString("category"));assertFalse(priority.getBoolean("nullable"));assertTrue(priority.getBoolean("hasDefault"));assertEquals("Alta",priority.getJSONArray("choices").getString(1));
+            assertNotNull(birthday);assertEquals("date",birthday.getString("baseType"));
+            JSONObject values=new JSONObject().put("big",value("9007199254740993123")).put("amount",value("9007199254740993123.123456")).put("enabled",value("false")).put("priority",value("Alta"))
+                .put("birthday",value("2024-02-29")).put("code",value("550e8400-e29b-41d4-a716-446655440000")).put("payload",value("{\"id\":9007199254740993123}"))
+                .put("tags",value("{\"a,b\",\"x\\\"y\",NULL}")).put("blob_value",value("\\x48656c6c6f")).put("ip",value("2001:db8::1/64")).put("duration",value("2 days 03:30:00"))
+                .put("span",value("[1,10)")).put("bits",value("0101")).put("doc",value("<record>ok</record>")).put("location",value("(1.25,-2.5)"));
+            JSONObject saved=RecordService.write(c,request("update",table,opened,values),false),row=saved.getJSONObject("row");
+            assertEquals("9007199254740993123",row.getString("big"));assertEquals("9007199254740993123.123456",row.getString("amount"));assertEquals("f",row.getString("enabled"));assertEquals("Alta",row.getString("priority"));
+            assertTrue(row.getString("payload").contains("9007199254740993123"));assertEquals("\\x48656c6c6f",row.getString("blob_value"));assertEquals("0101",row.getString("bits"));
+            try{RecordService.write(c,request("update",table,saved,new JSONObject().put("priority",value("Missing"))),false);fail("Invalid enum accepted");}catch(java.sql.SQLException expected){}
+            assertEquals(saved.getString("version"),RecordService.open(c,table,saved.getJSONObject("keys"),false).getString("version"));
+            JSONObject reset=RecordService.write(c,request("update",table,saved,new JSONObject().put("priority",new JSONObject().put("mode","default"))),false);
+            assertEquals("Bassa",reset.getJSONObject("row").getString("priority"));
+        }
+    }
+    @Test public void datesTimesAndOffsetsRoundTripWithoutLosingMicroseconds()throws Exception{
+        String uri=InstrumentationRegistry.getArguments().getString("postgresUri");assertNotNull(uri);
+        try(PgDatabase db=new PgDatabase()){
+            String session=db.connect(new JSONObject().put("connectionString",uri)).getString("session");
+            java.sql.Connection c=db.connection(session);
+            db.query(session,"SET TIME ZONE 'UTC'; CREATE TEMP TABLE temporal_probe(id integer PRIMARY KEY,day date,local_time time(6),local_stamp timestamp(6),zoned_stamp timestamptz(6),zoned_time timetz(6)); INSERT INTO temporal_probe(id) VALUES(1)");
+            JSONObject source=db.query(session,"SELECT * FROM temporal_probe").getJSONArray("results").getJSONObject(0).getJSONArray("recordTargets").getJSONObject(0);
+            JSONObject table=target(source.getString("schema"),source.getString("table"));
+            JSONObject opened=RecordService.open(c,table,new JSONObject().put("id","1"),false);
+            JSONObject values=new JSONObject().put("day",value("2024-02-29")).put("local_time",value("09:30:45.123456"))
+                .put("local_stamp",value("2026-10-25T02:30:45.654321")).put("zoned_stamp",value("2026-10-25T02:30:45.123456+05:30"))
+                .put("zoned_time",value("09:30:45.654321-04:00"));
+            JSONObject saved=RecordService.write(c,request("update",table,opened,values),false),row=saved.getJSONObject("row");
+            assertEquals("2024-02-29",row.getString("day"));assertEquals("09:30:45.123456",row.getString("local_time"));
+            assertEquals("2026-10-25 02:30:45.654321",row.getString("local_stamp"));
+            assertEquals("2026-10-24 21:00:45.123456+00",row.getString("zoned_stamp"));
+            assertEquals("09:30:45.654321-04",row.getString("zoned_time"));
+            JSONObject unchanged=RecordService.write(c,request("update",table,saved,new JSONObject()),false);
+            assertEquals(row.toString(),unchanged.getJSONObject("row").toString());
+            JSONObject cleared=RecordService.write(c,request("update",table,unchanged,new JSONObject().put("day",new JSONObject().put("mode","null"))),false);
+            assertTrue(cleared.getJSONObject("row").isNull("day"));
+        }
+    }
     private JSONObject value(String text)throws Exception{return new JSONObject().put("mode","value").put("value",text);}
     private JSONObject target(String schema,String name)throws Exception{return new JSONObject().put("schema",schema).put("table",name);}
     private JSONObject request(String mode,JSONObject target,JSONObject loaded,JSONObject values)throws Exception{
