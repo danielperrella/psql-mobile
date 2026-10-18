@@ -1,4 +1,4 @@
-import {displayValue} from './results-view.js';
+import {displayValue,recordTitle} from './results-view.js';
 import {temporalField,temporalValue,validOffset,sameTemporalValue} from './temporal-fields.js';
 import {fieldType,fieldError} from './field-types.js';
 
@@ -57,6 +57,11 @@ export class RecordEditor {
     const root=this.dialog.querySelector('.editor-fields');root.replaceChildren();this.inputs=new Map();this.groups=[];
     this.dialog.querySelector('.editor-context').textContent=deleting?'Eliminare definitivamente questo record? Verranno applicate anche le regole del database sui record collegati.':d.schema+' · '+(create?'Scegli i valori del nuovo record.':'I campi sono stati riletti dal database.');
     const save=this.dialog.querySelector('.editor-save');save.textContent=deleting?'Elimina definitivamente':create?'Crea record':'Salva modifiche';save.classList.toggle('danger',deleting);
+    if(deleting){
+      root.append(node('strong',recordTitle(row,d.columns.map(column=>column.name)).text.slice(0,160),'delete-record-name'));
+      const identity=node('dl',undefined,'delete-record-identity');for(const key of d.primaryKey||[]){const pair=node('div',undefined,'record-field');pair.append(node('dt',key),node('dd',displayValue(row[key])));identity.append(pair);}root.append(identity);
+      if(!d.canDelete){this.dialog.querySelector('.editor-error').textContent='La connessione non ha i permessi per questa operazione.';this.loaded=null;}return;
+    }
     for(const column of d.columns){
       const wrapper=node('div',undefined,'edit-field'),label=node('label',column.name),hint=node('small',column.type+(column.generated?' · Generato dal database':column.nullable?' · Facoltativo':' · Obbligatorio'));
       if(deleting){const value=node('pre',displayValue(row[column.name]));wrapper.append(label,hint,value);root.append(wrapper);continue;}

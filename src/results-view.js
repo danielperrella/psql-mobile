@@ -43,11 +43,12 @@ function shortened(text, limit) {
 }
 
 export class ResultsView {
-  constructor(root, onChange = () => {}, onNavigate = () => {}, onRecordAction = () => {}) {
+  constructor(root, onChange = () => {}, onNavigate = () => {}, onRecordAction = () => {}, onOpen = () => {}) {
     this.root = root;
     this.onChange = onChange;
     this.onNavigate = onNavigate;
     this.onRecordAction = onRecordAction;
+    this.onOpen = onOpen;
     this.results = [];
     this.selected = 0;
     this.page = 0;
@@ -130,23 +131,22 @@ export class ResultsView {
     empty.append(mark, node('h3', title), node('p', text));
     this.list.append(empty);
   }
-  record(row, fields, number, result = {}) {
-    const details = node('details', undefined, 'record');
-    const summary = node('summary', undefined, 'record-summary');
+  record(row, fields, number, result = {}, full = false) {
+    const details = node('article', undefined, 'record');
+    const summary = node('div', undefined, 'record-summary');
     const title = recordTitle(row, fields);
     const heading = node('span', undefined, 'record-heading');
     const identity = node('span', undefined, 'record-identity');
     identity.append(node('small', title.field || 'Record'), node('strong', shortened(title.text, 72)));
-    const chevron = node('span', undefined, 'record-chevron');
-    chevron.innerHTML = icon('chevron');
-    heading.append(node('span', String(number).padStart(2, '0'), 'row-number'), identity, chevron);
+    heading.append(node('span', String(number).padStart(2, '0'), 'row-number'), identity);
     const preview = node('span', undefined, 'record-preview');
     for (const field of fields.filter(field => field !== title.field).slice(0, 2)) {
       const line = node('span', undefined, 'preview-field');
       line.append(node('span', field, 'preview-label'), node('span', shortened(displayValue(row[field]), 100)));
       preview.append(line);
     }
-    summary.append(heading, preview, node('span', `${fields.length} campi · apri record`, 'record-open-hint'));
+    summary.append(heading);
+    if(!full){const open=node('button',`${fields.length} campi · apri record`,'record-open-hint');open.type='button';open.setAttribute('aria-label','Apri dettaglio '+shortened(title.text,72));open.onclick=()=>this.onOpen({row,fields,number,result});summary.append(preview,open);}
     const values = node('dl', undefined, 'record-fields');
     for (const field of fields) {
       const pair = node('div', undefined, 'record-field');
@@ -166,20 +166,17 @@ export class ResultsView {
       pair.append(node('dt', field), value);
       values.append(pair);
     }
-    details.append(summary, values);
+    details.append(summary);
+    if(full)details.append(values);
     const references=recordReferences(result,row);
     if(references.length){
       const actions=node('div',undefined,'record-actions');
       for(const reference of references){
         const suffix=references.length>1?' '+reference.target.table:'';
-        if(reference.target.canUpdate){const edit=node('button',undefined,'primary edit-record');edit.innerHTML=icon('edit');edit.append(node('span','Modifica'+suffix));edit.onclick=()=>this.onRecordAction('update',reference.target,reference.keys);actions.append(edit);}
-        if(reference.target.canInsert){const create=node('button','Nuovo'+suffix,'secondary');create.onclick=()=>this.onRecordAction('create',reference.target,{});actions.append(create);}
-        if(reference.target.canDelete){const remove=node('button',undefined,'secondary delete-record');remove.innerHTML=icon('trash');remove.append(node('span','Elimina'+suffix));remove.onclick=()=>this.onRecordAction('delete',reference.target,reference.keys);actions.append(remove);}
-      }details.insertBefore(actions,values);
+        if(reference.target.canUpdate){const edit=node('button',undefined,'icon-button edit-record');edit.innerHTML=icon('edit');edit.setAttribute('aria-label','Modifica'+suffix);edit.title='Modifica'+suffix;edit.onclick=()=>this.onRecordAction('update',reference.target,reference.keys);actions.append(edit);}
+        if(reference.target.canDelete){const remove=node('button',undefined,'icon-button delete-record');remove.innerHTML=icon('trash');remove.setAttribute('aria-label','Elimina'+suffix);remove.title='Elimina'+suffix;remove.onclick=()=>this.onRecordAction('delete',reference.target,reference.keys);actions.append(remove);}
+      }heading.append(actions);
     }
-    details.addEventListener('toggle', () => {
-      summary.querySelector('.record-open-hint').textContent = details.open ? 'Chiudi record' : `${fields.length} campi · apri record`;
-    });
     return details;
   }
 }

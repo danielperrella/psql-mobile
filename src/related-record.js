@@ -1,5 +1,5 @@
 import {applyRecordChange} from './record-changes.js';
-/** A drill-down keeps the original results DOM, expanded rows, filters and page untouched. */
+/** A record detail keeps the original results, filters and page untouched. */
 export class RelatedRecordView {
   constructor(dialog, load, renderRecord) {
     this.dialog = dialog;
@@ -8,7 +8,7 @@ export class RelatedRecordView {
     this.stack = [];
     this.request = 0;
     dialog.innerHTML = `
-      <div class="related-toolbar"><button class="related-back secondary">Indietro</button><button class="related-close secondary" aria-label="Chiudi record collegato">Chiudi</button></div>
+      <div class="related-toolbar"><button class="related-back secondary">Indietro</button><button class="related-close secondary" aria-label="Chiudi dettaglio record">Chiudi</button></div>
       <p class="related-eyebrow">Record collegato</p>
       <h2 id="relatedTitle" tabindex="-1"></h2>
       <p class="related-schema"></p>
@@ -28,6 +28,10 @@ export class RelatedRecordView {
     this.request++;
     if (this.stack.length < 2) { this.close(); return; }
     this.stack.pop(); this.render();
+  }
+  openRecord({row,fields,number,result}) {
+    this.request++;this.stack=[{local:true,number,reference:{targetSchema:result.recordTargets?.[0]?.schema||'',targetTable:result.recordTargets?.length===1?result.recordTargets[0].table:'Record'},result:{...result,fields,rows:[row]}}];
+    this.render();if(!this.dialog.open)this.dialog.showModal();
   }
   async open(reference) {
     if (this.stack.length >= 32) return;
@@ -51,16 +55,15 @@ export class RelatedRecordView {
     if (!entry) return;
     const {reference, result, error} = entry;
     this.dialog.querySelector('#relatedTitle').textContent = reference.targetTable;
-    this.dialog.querySelector('.related-schema').textContent = reference.targetSchema + ' · ' + (this.stack.length === 1 ? 'Dal risultato della query' : 'Livello ' + this.stack.length);
+    this.dialog.querySelector('.related-eyebrow').textContent=entry.local?'Dettaglio record':'Record collegato';
+    this.dialog.querySelector('.related-schema').textContent = (reference.targetSchema?reference.targetSchema+' · ':'') + (this.stack.length === 1 ? 'Dal risultato della query' : 'Livello ' + this.stack.length);
     const back = this.dialog.querySelector('.related-back');
     back.textContent = this.stack.length > 1 ? 'Indietro' : 'Torna ai risultati';
     const content = this.dialog.querySelector('.related-content');
     content.replaceChildren();
     content.setAttribute('aria-busy', String(!result && !error));
     if (result?.rows.length) {
-      const record = this.renderRecord(result.rows[0], result.fields, 1, result);
-      record.open = true;
-      record.querySelector('summary').onclick = event => event.preventDefault();
+      const record = this.renderRecord(result.rows[0], result.fields, entry.number||1, result);
       content.append(record);
       if (this.stack.length >= 32) {
         content.querySelectorAll('.relation-link').forEach(button => { button.disabled = true; });

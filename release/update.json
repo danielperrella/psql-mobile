@@ -1,8 +1,8 @@
 {
-  "versionCode": 6,
-  "versionName": "1.4.1",
+  "versionCode": 7,
+  "versionName": "1.4.2",
   "apkUrl": "https://danielperrella.github.io/psql-mobile/psql-mobile.apk",
-  "size": 2426519,
-  "sha256": "bcd6076adea97e7e98bb3dfa7cdaed8a9a42436acc009810f49808469618c156",
-  "notes": "Moduli con calendario, orari e fusi; validazioni per numeri, UUID e JSON, supporto ai domini e ai tipi PostgreSQL."
+  "size": 2426751,
+  "sha256": "ae4990f14929dd0f8de1feb968c6a614b59862de979ba9392ce5cfe26212d171",
+  "notes": "Record senza accordion, dettaglio dalla scritta sotto, azioni a icone e conferma di eliminazione."
 }

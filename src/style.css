@@ -558,7 +558,7 @@ summary::-webkit-details-marker{
 details[open]>summary .table-chevron,details[open]>summary .record-chevron{
   transform:rotate(90deg)
 }
-.prepare-query,.browse-records{
+.prepare-query{
   width:100%;
   margin:0 0 8px;
   color:var(--blue)
@@ -745,12 +745,7 @@ details[open]>summary .table-chevron,details[open]>summary .record-chevron{
 }
 .record-summary{
   display:block;
-  padding:20px 24px 16px;
-  cursor:pointer;
-  list-style:none
-}
-.record-summary:hover{
-  background:#20334a66
+  padding:20px 24px 16px
 }
 .record-heading{
   display:flex;
@@ -767,6 +762,7 @@ details[open]>summary .table-chevron,details[open]>summary .record-chevron{
 .record-identity{
   display:grid;
   flex:1;
+  min-width:0;
   gap:3px
 }
 .record-identity small{
@@ -806,13 +802,22 @@ details[open]>summary .table-chevron,details[open]>summary .record-chevron{
 }
 .record-open-hint{
   display:block;
+  min-height:44px;
+  padding:8px 0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  text-align:left;
   font-size:11px;
   color:var(--blue);
   margin:10px 0 0 38px
 }
-.record[open]{
-  background:#122237
-}
+.record-open-hint:hover{background:transparent;text-decoration:underline}
+.record-heading .record-actions{padding:0;gap:4px;flex-shrink:0;align-self:flex-start}
+.record-actions .icon-button{width:40px;height:44px;padding:10px;background:transparent}
+.record-actions .icon-button:hover{background:var(--raised)}
+.delete-record-identity{margin:0;overflow-wrap:anywhere}
+.delete-record-name{overflow-wrap:anywhere}
 .record-fields{
   margin:0;
   padding:0 24px 20px 62px
