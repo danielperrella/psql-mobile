@@ -27,8 +27,10 @@ public class FeaturesFlowTest {
         instrumentation.getTargetContext().getSharedPreferences("saved_favorites",0).edit().remove("demo").commit();
         MainActivity activity=start();
         try{WebView view=web(activity.getWindow().getDecorView());demo(view);
-            js(view,"document.querySelector('[data-view=schema]').click();[...document.querySelectorAll('.schema-table')].find(e=>e.dataset.table==='public.clienti').querySelectorAll('.prepare-query')[1].click();document.querySelector('.tb-secondary').click()");
-            js(view,"(()=>{const column=document.querySelector('.tb-condition-column');column.value='nome';column.dispatchEvent(new Event('change'));const op=document.querySelector('.tb-condition-operator');op.value='contains';op.dispatchEvent(new Event('change'));const value=document.querySelector('.tb-condition-value');value.value='Sofia';value.dispatchEvent(new Event('input'));document.querySelector('.tb-apply').click()})()");
+            js(view,"document.querySelector('[data-view=schema]').click();[...document.querySelectorAll('.schema-table')].find(e=>e.dataset.table==='public.clienti').querySelectorAll('.prepare-query')[1].click()");
+            until(view,"!document.querySelector('.tb-apply').disabled");
+            js(view,"document.querySelector('.tb-secondary').click()");
+            js(view,"(()=>{const column=document.querySelector('.tb-condition-column');column.value='column:nome';column.dispatchEvent(new Event('change'));const op=document.querySelector('.tb-condition-operator');op.value='contains';op.dispatchEvent(new Event('change'));const value=document.querySelector('.tb-condition-value');value.value='Sofia';value.dispatchEvent(new Event('input'));document.querySelector('.tb-apply').click()})()");
             until(view,"document.querySelectorAll('#results .record').length===1&&document.querySelector('#results').textContent.includes('Sofia Conti')");
             js(view,"document.querySelector('#results .record-open-hint').click()");until(view,"Boolean(document.querySelector('.favorite-record'))");
             js(view,"document.querySelector('.favorite-record').click()");until(view,"document.querySelector('.favorite-record').textContent.includes('Rimuovi')");
@@ -66,4 +68,26 @@ public class FeaturesFlowTest {
             assertEquals("0",js(view,"document.querySelectorAll('#results details,#results summary').length"));
         }finally{instrumentation.runOnMainSync(activity::finish);}
     }
+    @Test public void typedFiltersSearchRelationsAndKeepTemporalPrecision()throws Exception{
+        MainActivity activity=start();try{WebView view=web(activity.getWindow().getDecorView());demo(view);
+            js(view,"document.querySelector('[data-view=schema]').click();[...document.querySelectorAll('.schema-table')].find(e=>e.dataset.table==='public.ordini').querySelectorAll('.prepare-query')[1].click()");
+            until(view,"!document.querySelector('.tb-apply').disabled");
+            js(view,"document.querySelector('.tb-secondary').click();const c=document.querySelector('.tb-condition-column');c.value='column:cliente_id';c.dispatchEvent(new Event('change'));[...document.querySelectorAll('.tb-secondary')].find(e=>e.textContent==='Cerca in clienti').click()");
+            until(view,"document.querySelectorAll('.tb-lookup-item').length===6");
+            js(view,"const s=document.querySelector('.tb-lookup input');s.value='Sofia';s.dispatchEvent(new Event('input'))");
+            until(view,"document.querySelectorAll('.tb-lookup-item').length===1");
+            js(view,"document.querySelector('.tb-lookup-item').click();document.querySelector('.tb-apply').click()");
+            until(view,"document.querySelectorAll('#results .record').length===4");
+            assertEquals("true",js(view,"document.querySelector('.active-table-filters').textContent.includes('Sofia Conti')"));
+            js(view,"document.querySelector('.active-table-filters button').click()");until(view,"!document.querySelector('.tb-apply').disabled");
+            js(view,"const t=document.querySelector('.tb-table');t.value='aziende';t.dispatchEvent(new Event('change'))");until(view,"!document.querySelector('.tb-apply').disabled");
+            js(view,"document.querySelector('.tb-secondary').click();const dateColumn=document.querySelector('.tb-condition-column');dateColumn.value='column:ultimo_contatto';dateColumn.dispatchEvent(new Event('change'))");
+            assertEquals("true",js(view,"document.querySelector('.tb-condition-value').type==='datetime-local'"));
+            js(view,"const v=document.querySelector('.tb-condition-value');v.value='2026-10-18T09:30:15';v.dispatchEvent(new Event('input'));const f=document.querySelector('[aria-label=\"Frazione di secondo Valore filtro\"]');f.value='123456';f.dispatchEvent(new Event('input'));const z=document.querySelector('[aria-label=\"Scostamento UTC Valore filtro\"]');z.value='+02';z.dispatchEvent(new Event('input'));document.querySelector('.tb-apply').click()");
+            until(view,"document.querySelectorAll('#results .record').length===1");
+            assertEquals("true",js(view,"document.querySelector('.active-table-filters').textContent.includes('123456+02')"));
+            assertEquals("true",js(view,"document.documentElement.scrollWidth<=document.documentElement.clientWidth"));
+        }finally{instrumentation.runOnMainSync(activity::finish);}
+    }
+
 }

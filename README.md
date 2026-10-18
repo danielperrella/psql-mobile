@@ -31,6 +31,12 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 - Timeout connessione 10 s, query 15 s, socket 20 s. Sessione inattiva chiusa dopo 30 minuti e alla distruzione dell'Activity. La rotazione ricrea la sessione: è necessario riconnettersi.
 - Ogni risultato visualizza al massimo 1.000 righe; le celle oltre 64 Ki caratteri e i risultati oltre 2 milioni di caratteri sono troncati e segnalati. Lo schema è limitato a 10.000 colonne. Usa `LIMIT` per query molto grandi. I valori sono restituiti come testo per conservare precisione numerica e date.
 
+## Filtri nella 1.6.0
+
+I filtri leggono i tipi reali delle colonne, inclusi domini ed enum. Date e orari hanno controlli dedicati; i timestamp con fuso mantengono uno scostamento UTC esplicito e le frazioni di secondo. Per valori PostgreSQL speciali è disponibile l’inserimento testuale. Booleani ed enum usano una scelta tra valori ammessi; numeri e UUID vengono validati senza conversioni che ne riducano la precisione.
+
+Le FK si possono filtrare cercando un record collegato per nome, ID o altro valore. Le chiavi composte vengono applicate insieme. I controlli NULL sulle relazioni richiedono rispettivamente tutti i campi NULL o tutti valorizzati. Sono disponibili anche diverso da, inizia/finisce con e intervalli inclusivi per numeri e date. I criteri si combinano con AND; dopo l’esecuzione un riepilogo sopra i risultati permette di riaprire i filtri. Non sono ancora presenti gruppi OR o viste salvate.
+
 ## Funzioni introdotte nella 1.5.0
 
 - **Filtri e ordinamento** nello schema: scegli colonne, confronti o NULL e applica la query senza scrivere SQL. La selezione della tabella non esegue query; limite e offset permettono di leggere pagine successive.

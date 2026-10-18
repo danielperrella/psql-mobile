@@ -35,6 +35,12 @@ public class AppFlowTest {
         return answer.get();
     }
 
+    private void until(WebView view,String expression)throws Exception{
+        long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+        while(!"true".equals(evaluate(view,expression))&&System.nanoTime()<end)Thread.sleep(100);
+        assertEquals(expression,"true",evaluate(view,expression));
+    }
+
     @Test public void savedConnectionSurvivesPackageUpdate() throws Exception {
         org.junit.Assume.assumeTrue("true".equals(InstrumentationRegistry.getArguments().getString("verifySavedUpdate")));
         MainActivity activity=(MainActivity)instrumentation.startActivitySync(new Intent(instrumentation.getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -129,6 +135,7 @@ public class AppFlowTest {
             assertEquals("true",evaluate(view,"document.querySelector('#relatedDialog').open"));
             assertEquals("\"clienti\"",evaluate(view,"document.querySelector('#relatedTitle').textContent"));
             assertEquals("true",evaluate(view,"document.querySelector('#relatedDialog').scrollWidth<=document.querySelector('#relatedDialog').clientWidth+1"));
+            until(view,"document.querySelector('.related-content').getAttribute('aria-busy')==='false'&&Boolean(document.querySelector('#relatedDialog .relation-link'))");
             evaluate(view,"document.querySelector('#relatedDialog .relation-link').click()");
             assertEquals("\"aziende\"",evaluate(view,"document.querySelector('#relatedTitle').textContent"));
             evaluate(view,"document.querySelector('.related-back').click()");

@@ -16,7 +16,7 @@ import './favorites.css';
 import {InverseRelationsView} from './inverse-relations.js';
 import './inverse-relations.css';
 import {demoResults,demoSchema,demoRelated,demoRecords,resetDemo,demoInverse} from './demo.js';
-const version='1.5.0';
+const version='1.6.0';
 const nativeAndroid=import.meta.env.MODE==='android';
 const androidApi=nativeAndroid?nativeTransport(window.PsqlNative):null;
 import {EditorView,basicSetup} from 'codemirror';
@@ -70,9 +70,15 @@ let webFavoritesApi;
 const favoritesStore=createFavoritesStore((path,data)=>{if(nativeAndroid)return androidApi(path,data);try{webFavoritesApi??=createLocalFavoritesApi();return webFavoritesApi(path,data);}catch{throw new Error('Preferiti non disponibili: il browser non consente il salvataggio locale.');}});
 let favoriteEntries=[],favoritesSequence=0;
 const favoritesPanel=new FavoritesPanel($('#favoritesPanel'),{store:favoritesStore,getContext:favoriteContext,onOpen:openFavorite,onChange:items=>{favoriteEntries=items;renderTree();}});
-const tableBrowser=new TableBrowser($('#tableBrowser'),{getSchema:()=>schema,onExecute:async sql=>{
+const activeFilters=document.createElement('div');activeFilters.className='active-table-filters';activeFilters.hidden=true;$('#results').before(activeFilters);
+const tableBrowser=new TableBrowser($('#tableBrowser'),{getSchema:()=>schema,api:recordApi,getContext:()=>demo?"demo":session,onExecute:async (sql,filters)=>{
   if(busy)throw new Error('Attendi la query in corso.');
-  editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:sql}});$('#tableBrowserDialog').close();await run();
+  editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:sql}});$('#tableBrowserDialog').close();
+  if(await run()){
+    activeFilters.replaceChildren();
+    for(const text of filters.summaries){const chip=document.createElement('span');chip.className='active-filter-chip';chip.textContent=text;activeFilters.append(chip);}
+    const edit=document.createElement('button');edit.type='button';edit.className='tb-text-action';edit.textContent='Modifica filtri';edit.onclick=()=>openTableFilters(filters.schema,filters.table);activeFilters.append(edit);activeFilters.hidden=false;
+  }
 }});
 $('#closeTableBrowser').onclick=()=>$('#tableBrowserDialog').close();
 $('#demoReadOnly').onchange=()=>{if(demo){setReadOnly($('#demoReadOnly').checked);feedback(currentReadOnly?'Demo in sola lettura.':'Modifiche abilitate nella demo.');}};
@@ -134,13 +140,14 @@ function renderTree(){
   if(!tree.children.length){const empty=element('div',undefined,'empty-state');empty.append(element('h3',filter?'Nessuna tabella trovata':'Il tuo schema, qui.'),element('p',filter?'Prova un altro nome di tabella o colonna.':session||demo?'Non ci sono tabelle accessibili in questo schema.':'Connetti un database per esplorare tabelle e colonne.'));tree.append(empty)}
 }
 
-function renderResults(results){relatedView.close();resultsView.setResults(results)}
+function renderResults(results){activeFilters.hidden=true;relatedView.close();resultsView.setResults(results)}
 async function run(){
   if(busy||(!session&&!demo))return;busy=true;controls();editor.contentDOM.blur();feedback('Query in esecuzione…');
   try{
     if(demo){const selected=editor.state.sliceDoc(editor.state.selection.main.from,editor.state.selection.main.to);renderResults(demoResults(selected||editor.state.doc.toString()));feedback('Demo: query sui dati di esempio. Le modifiche restano in questa sessione.')}
     else{const selected=editor.state.sliceDoc(editor.state.selection.main.from,editor.state.selection.main.to);const result=await api('/query',{sql:selected||editor.state.doc.toString()});renderResults(result.results);feedback('Query completata in '+result.ms+' ms.')}
     setView('results');
+    return true;
   }catch(error){feedback(error.message,true);setView('query')}
   finally{busy=false;controls()}
 }

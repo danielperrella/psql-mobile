@@ -53,3 +53,33 @@ test('requires values for value comparisons and rejects unsupported operators', 
   assert.throws(() => buildTableQuery({schema, table_schema: 'public', table_name: 'ordini', conditions: [{column: 'id', operator: 'equals', value: null}]}), /Inserisci un valore/);
   assert.throws(() => buildTableQuery({schema, table_schema: 'public', table_name: 'ordini', conditions: [{column: 'id', operator: 'regex', value: '.*'}]}), /Operatore/);
 });
+
+test('typed operators match actual PostgreSQL base types including domains',async()=>{
+  const {filterKind,filterOperators}=await import('./table-browser.js');
+  assert.equal(filterKind({type:'my_bool',baseType:'boolean'}),'boolean');
+  assert.equal(filterKind({type:'status',choices:['ready','done']}),'enum');
+  assert.equal(filterKind({type:'timestamptz'}),'datetime-zone');
+  assert.equal(filterKind({type:'timestamp without time zone'}),'datetime-local');
+  assert.equal(filterKind({type:'time with time zone'}),'time-zone');
+  assert.ok(!filterOperators({type:'boolean'}).includes('contains'));
+  assert.ok(filterOperators({type:'numeric'}).includes('between'));
+  assert.ok(filterOperators({type:'text'}).includes('startsWith'));
+});
+
+test('ranges preserve both endpoints and text operators escape literal wildcards',()=>{
+  const sql=buildTableQuery({schema,table_schema:'public',table_name:'ordini',conditions:[{column:'id',operator:'between',value:'9007199254740993',end:'9007199254740999'},{column:'nota',operator:'startsWith',value:'50%_'},{column:'nota',operator:'notEquals',value:"O'Reilly"}]});
+  assert.ok(sql.includes(`"id" >= E'9007199254740993' AND "id" <= E'9007199254740999'`));
+  assert.ok(sql.includes(String.raw`ILIKE E'50\\%\\_%'`));
+  assert.ok(sql.includes(`"nota" <> E'O''Reilly'`));
+  assert.throws(()=>buildTableQuery({schema,table_schema:'public',table_name:'ordini',conditions:[{column:'id',operator:'between',value:'1'}]}),/entrambi/);
+});
+
+test('lookup filters whitelist every composite key column and preserve exact selected values',()=>{
+  const definition={relations:[{id:'fk',sourceColumns:['id','nota']}]};
+  const build=condition=>buildTableQuery({schema,definition,table_schema:'public',table_name:'ordini',conditions:[condition]});
+  assert.ok(build({relationId:'fk',operator:'equals',values:['9007199254740993',"O'Reilly"]}).includes(`("id" = E'9007199254740993' AND "nota" = E'O''Reilly')`));
+  assert.ok(build({relationId:'fk',operator:'isNull'}).includes('("id" IS NULL AND "nota" IS NULL)'));
+  assert.throws(()=>build({relationId:'fk',operator:'equals',values:['1']}),/nuovamente/);
+  assert.throws(()=>build({relationId:'fake',operator:'equals',values:['1','2']}),/nuovamente/);
+  definition.relations[0].sourceColumns=['injected'];assert.throws(()=>build({relationId:'fk',values:['1']}),/non appartiene/);
+});

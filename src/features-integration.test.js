@@ -30,3 +30,22 @@ test('duplicate creates a fresh record and inverse navigation keeps the original
   await assert.rejects(demoInverse('/inverse/read',{relationId:relations[0].id,keys:{id:'missing'},offset:0}));
   resetDemo();
 });
+
+test('typed visual filters and named lookup selections execute the same way in demo',async()=>{
+  resetDemo();const schema=demoSchema();
+  const definition=await demoRecords('/records/describe',{target:{schema:'public',table:'ordini'}});
+  const found=await demoRecords('/records/lookup',{relationId:definition.relations[0].id,search:'Sofia',offset:0});
+  const sql=buildTableQuery({schema,definition,table_schema:'public',table_name:'ordini',conditions:[{relationId:definition.relations[0].id,operator:'equals',values:found.items[0].values},{column:'id',operator:'between',value:'1043',end:'1055'}]});
+  assert.deepEqual(demoResults(sql)[0].rows.map(row=>row.id),['1043','1049','1055']);
+  const dates=buildTableQuery({schema,table_schema:'public',table_name:'aziende',conditions:[{column:'data_fondazione',operator:'between',value:'2018-01-01',end:'2018-12-31'}]});
+  assert.equal(demoResults(dates)[0].rows.length,1);
+  const prefix=buildTableQuery({schema,table_schema:'public',table_name:'clienti',conditions:[{column:'nome',operator:'startsWith',value:'Sof'},{column:'nome',operator:'endsWith',value:'Conti'},{column:'id',operator:'notEquals',value:'201'}]});
+  assert.deepEqual(demoResults(prefix)[0].rows.map(row=>row.id),['203']);
+});
+
+test('demo timestamp filters compare instants across UTC offsets without losing microseconds',()=>{
+  resetDemo();const schema=demoSchema();
+  const run=value=>demoResults(buildTableQuery({schema,table_schema:'public',table_name:'aziende',conditions:[{column:'ultimo_contatto',operator:'equals',value}]}))[0].rows;
+  assert.equal(run('2026-10-18T07:30:15.123456Z').length,1);
+  assert.equal(run('2026-10-18T07:30:15.123457Z').length,0);
+});

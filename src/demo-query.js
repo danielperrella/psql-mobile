@@ -22,7 +22,19 @@ function decimal(value){
   const digits=(match[2]+(match[3]||'')).replace(/^0+/,'')||'0',exponent=Number(match[4]||0)-(match[3]||'').length;
   if(!Number.isSafeInteger(exponent)||Math.abs(exponent)>100000)throw unsupported();return {digits,power:digits.length+exponent,sign:digits==='0'?0:match[1]==='-'?-1:1};
 }
-function compare(left,right,numeric){
+function instant(value){
+  const match=String(value).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)(?:\.(\d{1,6}))?(Z|[+-]\d{2}(?::?\d{2})?(?::?\d{2})?)$/i);
+  if(!match)return null;
+  const milliseconds=Date.parse(match[1]+'T'+match[2]+(match[2].length===5?':00':'')+'Z');
+  if(!Number.isFinite(milliseconds))return null;
+  const parts=match[4].match(/^([+-])(\d{2})(?::?(\d{2}))?(?::?(\d{2}))?$/);
+  const offset=parts?(parts[1]==='-'?-1:1)*(Number(parts[2])*3600+Number(parts[3]||0)*60+Number(parts[4]||0)):0;
+  return BigInt(milliseconds)*1000n+BigInt((match[3]||'').padEnd(6,'0'))-BigInt(offset)*1000000n;
+}
+function compare(left,right,numeric,type=''){
+  if(/timestamp with time zone|timestamptz/.test(type)){
+    const a=instant(left),b=instant(right);if(a!==null&&b!==null)return a===b?0:a<b?-1:1;
+  }
   if(numeric){const a=decimal(left),b=decimal(right);if(a&&b){if(a.sign!==b.sign)return a.sign-b.sign;if(!a.sign)return 0;const length=Math.max(a.digits.length,b.digits.length);return a.sign*(a.power-b.power||a.digits.padEnd(length,'0').localeCompare(b.digits.padEnd(length,'0')));}}
   return String(left).replace(' ','T').localeCompare(String(right).replace(' ','T'));
 }
@@ -47,18 +59,21 @@ export function selectDemo(text,data,makeResult){
   if(all)selected.push(...base.fields.map(field=>({column:field,field})));else selected.forEach(item=>column(item.column));
   if(new Set(selected.map(item=>item.field)).size!==selected.length)throw new Error('Usa nomi o alias diversi per le colonne della demo.');
   const predicates=[];
-  if(take('WHERE')){do{
+  const atom=()=>{
+    if(take('(')){const result=and();expect(')');return result;}
     let name;if(take('CAST')){expect('(');name=column(identifier());expect('AS');expect('TEXT');expect(')');}else{name=column(identifier());if(take('::'))expect('TEXT');}
-    if(take('IS')){const not=take('NOT');expect('NULL');predicates.push(row=>not?row[name]!=null:row[name]==null);continue;}
+    if(take('IS')){const not=take('NOT');expect('NULL');return row=>not?row[name]!=null:row[name]==null;}
     const op=list[i++]?.value.toUpperCase();if(!['=','!=','<>','<','>','<=','>=','ILIKE','LIKE'].includes(op))throw unsupported();const value=literal();
-    if(op==='ILIKE'||op==='LIKE'){let escape='\\';if(take('ESCAPE'))escape=literal();if(typeof escape!=='string'||escape.length>1)throw unsupported();predicates.push(row=>row[name]!=null&&value!=null&&like(row[name],value,escape,op==='ILIKE'));}
-    else{const numeric=/integer|bigint|smallint|numeric|decimal|real|double/.test(base.columnTypes?.[name]||'')||name==='id'||name.endsWith('_id');predicates.push(row=>{if(row[name]==null||value==null)return false;const compared=compare(row[name],value,numeric);return op==='='?compared===0:op==='!='||op==='<>'?compared!==0:op==='<'?compared<0:op==='>'?compared>0:op==='<='?compared<=0:compared>=0;});}
-  }while(take('AND'));}
+    if(op==='ILIKE'||op==='LIKE'){let escape='\\';if(take('ESCAPE'))escape=literal();if(typeof escape!=='string'||escape.length>1)throw unsupported();return row=>row[name]!=null&&value!=null&&like(row[name],value,escape,op==='ILIKE');}
+    else{const numeric=/integer|bigint|smallint|numeric|decimal|real|double/.test(base.columnTypes?.[name]||'')||name==='id'||name.endsWith('_id');return row=>{if(row[name]==null||value==null)return false;const compared=compare(row[name],value,numeric,base.columnTypes?.[name]);return op==='='?compared===0:op==='!='||op==='<>'?compared!==0:op==='<'?compared<0:op==='>'?compared>0:op==='<='?compared<=0:compared>=0;};}
+  };
+  const and=()=>{const terms=[atom()];while(take('AND'))terms.push(atom());return row=>terms.every(term=>term(row));};
+  if(take('WHERE'))predicates.push(and());
   let order,direction='ASC';if(take('ORDER')){expect('BY');order=column(identifier());if(take('DESC'))direction='DESC';else take('ASC');}
   const integer=()=>{const value=literal();if(typeof value!=='string'||!/^\d+$/.test(value)||!Number.isSafeInteger(Number(value)))throw unsupported();return Number(value);};
   let limit,offset=0;if(take('LIMIT'))limit=integer();if(take('OFFSET'))offset=integer();take(';');if(i!==list.length)throw unsupported();
   let rows=base.rows.filter(row=>predicates.every(predicate=>predicate(row)));
-  if(order){const numeric=/integer|bigint|smallint|numeric|decimal|real|double/.test(base.columnTypes?.[order]||'')||order==='id'||order.endsWith('_id');rows.sort((a,b)=>{const compared=a[order]==null?(b[order]==null?0:1):b[order]==null?-1:compare(a[order],b[order],numeric);return direction==='DESC'?-compared:compared;});}
+  if(order){const numeric=/integer|bigint|smallint|numeric|decimal|real|double/.test(base.columnTypes?.[order]||'')||order==='id'||order.endsWith('_id');rows.sort((a,b)=>{const compared=a[order]==null?(b[order]==null?0:1):b[order]==null?-1:compare(a[order],b[order],numeric,base.columnTypes?.[order]);return direction==='DESC'?-compared:compared;});}
   rows=rows.slice(offset,limit===undefined?undefined:offset+limit);
   const targets=base.recordTargets.map(target=>({...target,fields:selected,keys:target.keys.map(key=>({...key,field:selected.find(item=>item.column===key.column)?.field})),keyComplete:target.keys.every(key=>selected.filter(item=>item.column===key.column).length===1)}));
   const relations=base.relations.flatMap(relation=>{const mapped=relation.sourceColumns.map(key=>selected.find(item=>item.column===key)?.field);return mapped.every(Boolean)?[{...relation,fields:mapped}]:[];});
