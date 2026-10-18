@@ -26,7 +26,7 @@ export class RecordEditor {
       if(this.mode==='create'||JSON.stringify(value)!==control.initial)changes[name]=value;
     }return changes;
   }
-  tryClose(){if(this.loading)return;if(this.mode!=='delete'&&Object.keys(this.changes()).some(name=>this.mode!=='create'||this.inputs.get(name).initial!==JSON.stringify(this.changes()[name]))){this.dialog.querySelector('.discard-changes').hidden=false;return;}this.close();}
+  tryClose(){if(this.loading)return;if(this.mode!=='delete'&&Object.keys(this.changes()).some(name=>this.mode!=='create'||this.inputs.get(name).initial!==JSON.stringify(this.changes()[name]))){const notice=this.dialog.querySelector('.discard-changes');notice.hidden=false;notice.scrollIntoView({block:'center',behavior:'auto'});return;}this.close();}
   close(){this.sequence++;this.closeLookup();this.dialog.close();this.dialog.querySelector('.editor-fields').replaceChildren();this.inputs=new Map();this.loaded=null;}
   closeLookup(){clearTimeout(this.searchTimer);this.lookupSequence=(this.lookupSequence||0)+1;this.lookup.close();this.lookup.querySelector('.lookup-items').replaceChildren();}
   async open(mode,target,keys={}){

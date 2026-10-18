@@ -2,7 +2,7 @@
   "versionCode": 5,
   "versionName": "1.4.0",
   "apkUrl": "https://danielperrella.github.io/psql-mobile/psql-mobile.apk",
-  "size": 2421855,
-  "sha256": "547a10b4780996fe9bbce63a3df27987738a804cd46050ff2c763b60219fa59a",
+  "size": 2421895,
+  "sha256": "4e807a096a7006d492d676e5acba3f8c7c4ffaf6ba8a6acd59291f4ab408ca0b",
   "notes": "Modifica, creazione e cancellazione dei record in modale, con ricerca nelle lookup."
 }
