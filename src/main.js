@@ -8,7 +8,7 @@ import {ConnectionHome} from './connection-home.js';
 import {AppUpdates} from './app-updates.js';
 import {RecordEditor} from './record-editor.js';
 import {RelatedRecordView} from './related-record.js';
-import {demoResults,demoSchema,demoRelated,demoRecords} from './demo.js';
+import {demoResults,demoSchema,demoRelated,demoRecords,resetDemo} from './demo.js';
 const version='1.4.0';
 const nativeAndroid=import.meta.env.MODE==='android';
 const androidApi=nativeAndroid?nativeTransport(window.PsqlNative):null;
@@ -60,11 +60,11 @@ const relatedView=new RelatedRecordView($('#relatedDialog'),reference=>demo?demo
 const recordEditor=new RecordEditor($('#recordEditor'),$('#lookupDialog'),(path,data)=>demo?demoRecords(path,data):api(path,data),change=>{resultsView.applyMutation(change);relatedView.applyMutation(change);feedback(change.mode==='delete'?'Record eliminato.':change.mode==='create'?'Record creato.':'Modifiche salvate.');});
 function controls(){
   $('#run').disabled=busy||(!session&&!demo);$('#disconnect').disabled=busy||(!session&&!demo);
-  $('#connectionButton').disabled=busy;$('#refresh').disabled=busy||!session;$('#connectSubmit').disabled=busy;$('#addConnection').disabled=busy;connectionHome.setBusy(busy);
+  $('#connectionButton').disabled=busy;$('#refresh').disabled=busy||!session;$('#resetDemo').disabled=busy;$('#connectSubmit').disabled=busy;$('#addConnection').disabled=busy;connectionHome.setBusy(busy);
 }
 function connectionState(){
   $('#connectionButton span').textContent=homeVisible?'Nuova':'Connessioni';$('#resumeConnection').hidden=!session&&!demo;
-  $('#demoWelcome').hidden=!!session||demo;controls();
+  $('#demoWelcome').hidden=!!session||demo;$('#demoTools').hidden=!demo;controls();
 }
 let noticeTimer;
 function feedback(text,error=false){
@@ -86,6 +86,7 @@ function renderTree(){
     const summary=document.createElement('summary'),label=element('span',undefined,'table-label'),chevron=element('span',undefined,'table-chevron');
     label.append(element('strong',columns[0].table_name),element('small',columns[0].table_schema+' · '+columns.length+' colonne'));
     chevron.innerHTML=icon('chevron');summary.append(label,chevron);details.append(summary);
+    const browse=element('button','Apri record','prepare-query primary');browse.onclick=async()=>{const quote=v=>'"'+v.replaceAll('"','""')+'"';editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT * FROM '+quote(columns[0].table_schema)+'.'+quote(columns[0].table_name)+' LIMIT 100;'}});await run()};details.append(browse);
     const prepare=element('button','Prepara SELECT','prepare-query secondary');
     prepare.onclick=()=>{const quote=v=>'"'+v.replaceAll('"','""')+'"';editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT *\nFROM '+quote(columns[0].table_schema)+'.'+quote(columns[0].table_name)+'\nLIMIT 100;'}});setView('query');feedback('SELECT pronta. Premi Esegui query per leggere i dati.')};details.append(prepare);
     if(nativeAndroid||demo){const create=element('button','Nuovo record','prepare-query secondary');create.onclick=()=>recordEditor.open('create',{schema:columns[0].table_schema,table:columns[0].table_name});details.append(create)}
@@ -99,7 +100,7 @@ function renderResults(results){relatedView.close();resultsView.setResults(resul
 async function run(){
   if(busy||(!session&&!demo))return;busy=true;controls();editor.contentDOM.blur();feedback('Query in esecuzione…');
   try{
-    if(demo){renderResults(demoResults());feedback('Demo: i dati sono di esempio e il testo SQL non viene eseguito.')}
+    if(demo){const selected=editor.state.sliceDoc(editor.state.selection.main.from,editor.state.selection.main.to);renderResults(demoResults(selected||editor.state.doc.toString()));feedback('Demo: query sui dati di esempio. Le modifiche restano in questa sessione.')}
     else{const selected=editor.state.sliceDoc(editor.state.selection.main.from,editor.state.selection.main.to);const result=await api('/query',{sql:selected||editor.state.doc.toString()});renderResults(result.results);feedback('Query completata in '+result.ms+' ms.')}
     setView('results');
   }catch(error){feedback(error.message,true);setView('query')}
@@ -149,7 +150,8 @@ $('#connectForm').onsubmit=async event=>{
   await connect(config,gateway);
 };
 $('#refresh').onclick=async()=>{if(!session)return;try{schema=await api('/schema');updateSchema();feedback('Schema aggiornato')}catch(e){feedback(e.message,true)}};
-$('#disconnect').onclick=async()=>{try{await api('/disconnect')}catch{}session=null;conn=null;schema=[];demo=false;updateSchema();renderResults([]);$('#run').disabled=true;$('#disconnect').disabled=true;$('#status').textContent='Non connesso';$('#status').classList.remove('connected');currentProfileId=null;feedback('Sessione chiusa. Le connessioni salvate restano disponibili.');connectionState();showHome()};
+$('#disconnect').onclick=async()=>{try{await api('/disconnect')}catch{}session=null;conn=null;schema=[];demo=false;updateSchema();renderResults([]);$('#run').disabled=true;$('#disconnect').disabled=true;$('#status').textContent='Non connesso';$('#status').classList.remove('connected');currentProfileId=null;feedback('Sessione chiusa.');connectionState();showHome()};
+$('#resetDemo').onclick=async()=>{resetDemo();await $('#demo').onclick()};
 $('#demo').onclick=async()=>{
   if(session)await api('/disconnect').catch(()=>{});session=null;conn=null;demo=true;
   schema=demoSchema();
@@ -163,3 +165,5 @@ if(!nativeAndroid&&'serviceWorker'in navigator)navigator.serviceWorker.register(
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showHome()};document.documentElement.classList.toggle('native-android',nativeAndroid);
 renderTree();controls();setView(activeView,false);showHome();
 if(nativeAndroid&&window.PsqlNative)new AppUpdates($('#appUpdates'),$('#updateDialog'),androidApi).check();
+
+if(!nativeAndroid&&new URLSearchParams(location.search).has('demo'))$('#demo').click();

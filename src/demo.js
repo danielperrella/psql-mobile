@@ -1,3 +1,4 @@
+import {selectDemo} from './demo-query.js';
 const customerRelation={id:'demo-customer',fields:['cliente_id'],sourceColumns:['cliente_id'],targetColumns:['id'],targetSchema:'public',targetTable:'clienti'};
 const companyRelation={id:'demo-company',fields:['azienda_id'],sourceColumns:['azienda_id'],targetColumns:['id'],targetSchema:'public',targetTable:'aziende'};
 
@@ -16,18 +17,21 @@ const names=['Elena Rossi','Luca Bianchi','Sofia Conti','Marco Moretti','Giulia 
 const customers=names.map((nome,index)=>({id:String(201+index),nome,email:nome.toLowerCase().replace(' ','.')+'@example.com',azienda_id:'71'}));
 const company={id:'71',nome:'Studio Esempio',citta:'Milano',note:'Dati dimostrativi, nessuna connessione reale.'};
 const orders=initialOrders()[0].rows;
-const data={ordini:orders,clienti:customers,aziende:[company]};
+const data={ordini:orders,clienti:customers,aziende:[{...company}]};
 const versions=new WeakMap();
 const relations=table=>table==='ordini'?[customerRelation]:table==='clienti'?[companyRelation]:[];
 const fields=Object.fromEntries(Object.entries(data).map(([table,rows])=>[table,Object.keys(rows[0])]));
+const sequences={ordini:1064,clienti:206,aziende:71};
+function relationTable(id){if(id==='demo-customer')return 'clienti';if(id==='demo-company')return 'aziende';throw new Error('Relazione demo non disponibile.');}
 function target(table){return {schema:'public',table,keyComplete:true,keys:[{column:'id',field:'id'}],fields:fields[table].map(field=>({column:field,field})),canInsert:true,canUpdate:true,canDelete:true};}
 function result(table,rows){return {command:'DEMO',fields:fields[table],rows:structuredClone(rows),relations:relations(table),recordTargets:[target(table)],rowCount:rows.length};}
-export function demoResults(){return [result('ordini',orders)];}
+export function demoResults(sql='SELECT * FROM public.ordini'){return selectDemo(sql,data,result);}
+export function resetDemo(){Object.assign(sequences,{ordini:1064,clienti:206,aziende:71});orders.splice(0,orders.length,...initialOrders()[0].rows);customers.splice(0,customers.length,...names.map((nome,index)=>({id:String(201+index),nome,email:nome.toLowerCase().replace(' ','.')+'@example.com',azienda_id:'71'})));data.aziende.splice(0,data.aziende.length,{...company});}
 export function demoSchema(){
   return Object.entries(fields).flatMap(([table_name,names])=>names.map(column_name=>({table_schema:'public',table_name,column_name,data_type:column_name==='metadata'?'jsonb':column_name==='id'||column_name.endsWith('_id')?'integer':'text'})));
 }
 export async function demoRelated({relationId,values}){
-  const table=relationId==='demo-customer'?'clienti':'aziende';
+  const table=relationTable(relationId);
   return {results:[result(table,data[table].filter(row=>row.id===values[0]))]};
 }
 function definition(table){
@@ -36,11 +40,11 @@ function definition(table){
 function loaded(table,row){return {definition:definition(table),row:structuredClone(row),keys:{id:row.id},version:String(versions.get(row)||0),result:result(table,[row])};}
 export async function demoRecords(path,input){
   if(path==='/records/lookup'){
-    const table=input.relationId==='demo-customer'?'clienti':'aziende';
+    const table=relationTable(input.relationId);
     const rows=data[table].filter(row=>Object.values(row).some(value=>String(value).toLowerCase().includes(input.search.toLowerCase())));
     return {items:rows.slice(input.offset,input.offset+25).map(row=>({values:[row.id],label:row.nome,detail:'id: '+row.id})),hasMore:rows.length>input.offset+25};
   }
-  const table=input.target.table;if(!data[table])throw new Error('Tabella dimostrativa non disponibile.');
+  const table=input.target.table;if(!Object.hasOwn(data,table)||input.target.schema!=='public')throw new Error('Tabella dimostrativa non disponibile.');
   if(path==='/records/describe')return definition(table);
   const create=input.mode==='create';
   let row=create?Object.fromEntries(fields[table].map(name=>[name,null])):data[table].find(row=>row.id===input.keys.id);
@@ -52,7 +56,19 @@ export async function demoRecords(path,input){
     if(referenced)throw new Error('Record ancora collegato ad altri record.');
     data[table].splice(data[table].indexOf(row),1);return {deleted:true};
   }
-  if(create)row.id=String(Math.max(0,...data[table].map(row=>Number(row.id)))+1);
-  for(const [name,change]of Object.entries(input.values))if(change.mode==='value')row[name]=change.value;else if(change.mode==='null')row[name]=null;
-  if(create)data[table].push(row);versions.set(row,(versions.get(row)||0)+1);return loaded(table,row);
+  if(path!=='/records/save')throw new Error('Operazione demo non disponibile.');
+  const candidate=structuredClone(row),columns=definition(table).columns;
+  for(const [name,change]of Object.entries(input.values)){
+    if(!columns.some(column=>column.name===name&&column.canUpdate))throw new Error('Campo non modificabile: '+name);
+    if(change.mode==='value')candidate[name]=change.value;
+    else if(change.mode==='null')candidate[name]=null;
+    else throw new Error('Valore demo non disponibile per '+name);
+    if(name==='metadata'&&candidate[name]!=null&&typeof candidate[name]==='string'){
+      try{candidate[name]=JSON.parse(candidate[name]);}catch{throw new Error('metadata: inserisci un JSON valido.');}
+    }
+  }
+  for(const column of columns)if(column.name!=='id'&&!column.nullable&&(candidate[column.name]==null||candidate[column.name]===''))throw new Error('Compila il campo '+column.name+'.');
+  for(const relation of relations(table))if(!data[relation.targetTable].some(record=>record.id===String(candidate[relation.sourceColumns[0]])))throw new Error('Seleziona un record valido per '+relation.sourceColumns[0]+'.');
+  if(create)candidate.id=String(++sequences[table]);
+  Object.assign(row,candidate);if(create)data[table].push(row);versions.set(row,(versions.get(row)||0)+1);return loaded(table,row);
 }
