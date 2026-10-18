@@ -49,5 +49,7 @@ export const appShell = (native, version) => `
   ${native ? '' : '<footer class="web-footer"><span>La demo contiene dati di esempio.</span><a href="./psql-mobile.zip" download>Scarica il progetto</a></footer>'}
   ${connectionDialog(native, version)}
   <dialog id="relatedDialog" class="related-dialog" aria-labelledby="relatedTitle"></dialog>
+  <dialog id="recordEditor" class="record-editor" aria-labelledby="recordEditorTitle"></dialog>
+  <dialog id="lookupDialog" class="lookup-dialog" aria-labelledby="lookupTitle"></dialog>
   ${native ? '<dialog id="updateDialog" aria-labelledby="updateTitle"></dialog>' : ''}
 `;

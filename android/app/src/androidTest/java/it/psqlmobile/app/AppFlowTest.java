@@ -142,4 +142,38 @@ public class AppFlowTest {
             assertEquals("false", evaluate(view, "document.querySelector('#queryPanel').hidden"));
         } finally { instrumentation.runOnMainSync(activity::finish); }
     }
+    @Test public void recordModalSelectsLookupCreatesAndConfirmsDeletion() throws Exception {
+        MainActivity activity=(MainActivity)instrumentation.startActivitySync(new Intent(instrumentation.getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            WebView view=webView(activity.getWindow().getDecorView());
+            long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+            while(!"true".equals(evaluate(view,"Boolean(document.querySelector('#demo'))"))&&System.nanoTime()<end)Thread.sleep(100);
+            evaluate(view,"document.querySelector('#demo').click();document.querySelector('#results .record summary').click();document.querySelector('#results .edit-record').click()");
+            assertEquals("true",evaluate(view,"document.querySelector('#recordEditor').open"));
+            evaluate(view,"document.querySelector('.lookup-open').click()");
+            assertEquals("true",evaluate(view,"document.querySelector('#lookupDialog').open"));
+            evaluate(view,"(()=>{const input=document.querySelector('#lookupDialog input');input.value='Sofia';input.dispatchEvent(new Event('input'))})()");
+            end=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
+            while(!"1".equals(evaluate(view,"document.querySelectorAll('.lookup-item').length"))&&System.nanoTime()<end)Thread.sleep(100);
+            assertEquals("1",evaluate(view,"document.querySelectorAll('.lookup-item').length"));
+            evaluate(view,"document.querySelector('.lookup-item').click();document.querySelector('textarea[aria-label=note]').value='Nota aggiornata';document.querySelector('.editor-save').click()");
+            assertEquals("false",evaluate(view,"document.querySelector('#recordEditor').open"));
+            assertEquals("true",evaluate(view,"document.querySelector('#results .record').textContent.includes('Nota aggiornata')"));
+            assertEquals("true",evaluate(view,"document.querySelector('#results .record').textContent.includes('203')"));
+            evaluate(view,"document.querySelector('.create-record').click()");
+            evaluate(view,"document.querySelector('textarea[aria-label=cliente]').value='Nuovo ordine test';document.querySelector('.lookup-open').click()");
+            evaluate(view,"document.querySelector('.lookup-item').click();document.querySelector('.editor-save').click()");
+            assertEquals("2",evaluate(view,"document.querySelector('#resultPicker').options.length"));
+            assertEquals("true",evaluate(view,"document.querySelector('#resultPicker').options[0].textContent.includes('24 record')"));
+            assertEquals("true",evaluate(view,"document.querySelector('#results .record').textContent.includes('Nuovo ordine test')"));
+            evaluate(view,"document.querySelector('#results .record summary').click();document.querySelector('#results .delete-record').click()");
+            assertEquals("true",evaluate(view,"document.querySelector('#recordEditor').open"));
+            assertEquals("true",evaluate(view,"document.querySelector('.editor-save').textContent.includes('Elimina definitivamente')"));
+            assertEquals("1",evaluate(view,"document.querySelectorAll('#results .record').length"));
+            evaluate(view,"document.querySelector('.editor-save').click()");
+            assertEquals("0",evaluate(view,"document.querySelectorAll('#results .record').length"));
+            assertEquals("true",evaluate(view,"document.documentElement.scrollWidth<=document.documentElement.clientWidth"));
+        }finally{instrumentation.runOnMainSync(activity::finish);}
+    }
+
 }

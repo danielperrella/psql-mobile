@@ -37,7 +37,7 @@ public final class PgDatabase implements AutoCloseable {
         } finally { options.properties.clear(); }
     }
 
-    private Connection connection(String id) throws SQLException {
+    Connection connection(String id) throws SQLException {
         expire();
         Session session = sessions.get(id);
         if (session == null || session.connection.isClosed()) {
@@ -116,6 +116,8 @@ public final class PgDatabase implements AutoCloseable {
                         catch (SQLException e) {
                             result.put("relations",new JSONArray()).put("relationWarning","Relazioni non disponibili per questo risultato.");
                         }
+                        try { result.put("recordTargets",RecordService.targets(connection,meta,labels)); }
+                        catch(SQLException e){result.put("recordTargets",new JSONArray());}
                         while (cursor.next()) {
                             if (rows.length() >= MAX_ROWS || budget <= 0) { truncated = true; break; }
                             JSONObject row = new JSONObject();

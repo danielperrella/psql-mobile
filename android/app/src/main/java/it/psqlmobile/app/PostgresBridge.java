@@ -58,6 +58,11 @@ public final class PostgresBridge implements AutoCloseable {
                         case "/schema": result = database.schema(data.getString("session")); break;
                         case "/query": result = database.query(data.getString("session"), data.optString("sql")); break;
                         case "/related": result = database.related(data.getString("session"), data.getString("relationId"), data.getJSONArray("values")); break;
+                        case "/records/describe": result=RecordService.describe(database.connection(data.getString("session")),data.getJSONObject("target")); break;
+                        case "/records/open": result=RecordService.open(database.connection(data.getString("session")),data.getJSONObject("target"),data.getJSONObject("keys"),false); break;
+                        case "/records/save": result=RecordService.write(database.connection(data.getString("session")),data,false); break;
+                        case "/records/delete": result=RecordService.write(database.connection(data.getString("session")),data,true); break;
+                        case "/records/lookup": result=RecordService.lookup(database.connection(data.getString("session")),data.getString("relationId"),data.optString("search"),data.optInt("offset")); break;
                         case "/disconnect": database.disconnect(data.optString("session")); result = new JSONObject().put("ok", true); break;
                         case "/export": activity.saveCsv(id, data.getString("text")); return;
                         default: throw new IllegalArgumentException("Operazione non supportata.");

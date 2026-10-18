@@ -1,3 +1,4 @@
+import {applyRecordChange} from './record-changes.js';
 /** A drill-down keeps the original results DOM, expanded rows, filters and page untouched. */
 export class RelatedRecordView {
   constructor(dialog, load, renderRecord) {
@@ -18,6 +19,11 @@ export class RelatedRecordView {
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.back(); });
   }
   close() { this.request++; this.stack = [];this.dialog.querySelector('.related-content').replaceChildren();this.dialog.close(); }
+  applyMutation(change){
+    for(const entry of this.stack)if(entry.result&&applyRecordChange(entry.result,change)){if(change.mode==='delete')entry.deleted=true;else entry.result=change.saved.result;}
+    if(change.mode==='create'&&this.dialog.open)this.stack.push({reference:{targetSchema:change.target.schema,targetTable:change.target.table},result:change.saved.result});
+    if(this.dialog.open)this.render();
+  }
   back() {
     this.request++;
     if (this.stack.length < 2) { this.close(); return; }
@@ -70,7 +76,7 @@ export class RelatedRecordView {
     } else {
       const message = document.createElement('p');
       message.className = error ? 'error' : '';
-      message.textContent = error || (result ? 'Record non trovato o non visibile con i permessi della connessione.' : 'Caricamento del record…');
+      message.textContent = error || (entry.deleted?'Record eliminato.':result ? 'Record non trovato o non visibile con i permessi della connessione.' : 'Caricamento del record…');
       content.append(message);
       if (error) {
         const retry = document.createElement('button'); retry.textContent = 'Riprova';

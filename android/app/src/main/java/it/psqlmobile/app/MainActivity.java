@@ -76,7 +76,7 @@ public final class MainActivity extends Activity {
     }
 
     private void handleBack() {
-        webView.evaluateJavascript("(()=>{const d=document.querySelector('dialog[open]');if(d){if(d.dispatchEvent(new Event('cancel',{cancelable:true})))d.close();return true}return false})()",
+        webView.evaluateJavascript("(()=>{const ds=document.querySelectorAll('dialog[open]');const d=ds[ds.length-1];if(d){if(d.dispatchEvent(new Event('cancel',{cancelable:true})))d.close();return true}return false})()",
             result -> { if (!"true".equals(result)) finish(); });
     }
 

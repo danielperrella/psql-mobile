@@ -9,5 +9,5 @@ fs.writeFileSync('release/psql-mobile.apk',apk);
 fs.writeFileSync('release/update.json',JSON.stringify({versionCode,versionName,
   apkUrl:'https://danielperrella.github.io/psql-mobile/psql-mobile.apk',size:apk.length,
   sha256:crypto.createHash('sha256').update(apk).digest('hex'),
-  notes:'Connessioni salvate, aggiornamenti dall’app e navigazione dei record collegati.'},null,2)+'\n');
+  notes:'Modifica, creazione e cancellazione dei record in modale, con ricerca nelle lookup.'},null,2)+'\n');
 await import('./verify-release.mjs');

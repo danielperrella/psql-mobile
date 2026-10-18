@@ -12,6 +12,239 @@
   --green:#97d9bf;
   --error:#ffb5a8
 }
+.record-actions,.result-create-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  padding:0 24px 20px
+}
+.result-create-actions:empty{
+  display:none
+}
+.record-actions button,.create-record{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:13px
+}
+.record-actions .icon,.create-record .icon{
+  width:17px;
+  height:17px;
+  flex-basis:17px
+}
+.delete-record{
+  color:var(--error)
+}
+.record-help,.snapshot-notice{
+  margin:0 24px 18px;
+  color:var(--muted);
+  font-size:12px
+}
+.snapshot-notice{
+  color:#e6c78f
+}
+.record-editor,.lookup-dialog{
+  max-width:680px;
+  padding:0
+}
+.record-modal-header{
+  position:sticky;
+  top:0;
+  z-index:2;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:22px 24px 16px;
+  background:var(--surface);
+  border-bottom:1px solid var(--line)
+}
+.record-modal-header h2{
+  font-size:25px;
+  margin:0;
+  letter-spacing:-.4px
+}
+.record-modal-header button{
+  flex-shrink:0
+}
+.editor-kind{
+  margin:0 0 6px;
+  color:var(--blue)
+}
+.editor-context,.editor-error{
+  margin:20px 24px
+}
+.editor-fields{
+  padding:0 24px;
+  display:grid;
+  gap:24px
+}
+.edit-field>label{
+  margin:0;
+  font-size:15px;
+  font-weight:600;
+  overflow-wrap:anywhere
+}
+.edit-field>small{
+  display:block;
+  color:var(--muted);
+  font-size:12px;
+  margin:6px 0 10px;
+  overflow-wrap:anywhere
+}
+.edit-field>select{
+  font-size:13px;
+  margin-bottom:8px;
+  background:transparent;
+  padding:9px 12px
+}
+.edit-field>textarea{
+  font:15px/1.6 ui-monospace,monospace;
+  min-height:80px;
+  resize:vertical
+}
+.edit-field>pre{
+  font:14px/1.7 ui-monospace,monospace;
+  margin:0
+}
+.edit-field>textarea:disabled{
+  opacity:.45
+}
+.lookup-field{
+  margin:0;
+  padding:18px;
+  border:1px solid #6886a9;
+  border-radius:10px;
+  background:#122237
+}
+.lookup-field h3{
+  margin:0;
+  font-size:16px;
+  font-weight:600;
+  overflow-wrap:anywhere
+}
+.lookup-field>p{
+  margin:6px 0 12px
+}
+.lookup-selected{
+  font:13px/1.7 ui-monospace,monospace;
+  color:#dbeaff;
+  margin-bottom:16px;
+  overflow-wrap:anywhere
+}
+.lookup-open{
+  color:var(--blue);
+  width:100%
+}
+.lookup-field>.quiet-button{
+  text-align:left;
+  padding-left:0;
+  margin-top:6px
+}
+.record-modal-footer{
+  position:sticky;
+  bottom:0;
+  z-index:2;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:24px;
+  padding:16px 24px calc(16px + env(safe-area-inset-bottom));
+  background:var(--surface);
+  border-top:1px solid var(--line)
+}
+.danger{
+  background:var(--error);
+  border-color:var(--error);
+  color:#351a16
+}
+.danger:hover:not(:disabled){
+  background:#ffd0c6
+}
+.discard-changes{
+  margin:20px 24px;
+  padding:14px;
+  border:1px solid #e6c78f;
+  border-radius:10px
+}
+.discard-changes button{
+  margin:8px 6px 0 0;
+  font-size:12px
+}
+.lookup-dialog>.lookup-label{
+  margin:20px 24px;
+  font-size:13px
+}
+.lookup-label>input{
+  margin-top:8px
+}
+.lookup-status{
+  margin:18px 24px
+}
+.lookup-items{
+  padding:0 24px;
+  display:grid;
+  gap:10px
+}
+.lookup-item{
+  display:grid;
+  text-align:left;
+  gap:6px;
+  padding:16px;
+  overflow-wrap:anywhere
+}
+.lookup-item strong{
+  color:var(--blue);
+  font-size:16px;
+  font-weight:600
+}
+.lookup-item small{
+  color:var(--muted);
+  font:12px/1.6 ui-monospace,monospace
+}
+.lookup-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:20px 24px
+}
+.lookup-pagination button,.lookup-pagination span{
+  font-size:12px
+}
+@media(max-width:820px){
+  .record-editor,.lookup-dialog{
+    max-width:none;
+    padding:0
+  }
+  .record-modal-header{
+    padding:20px 18px 16px
+  }
+  .record-modal-header h2{
+    font-size:23px
+  }
+  .record-modal-footer{
+    padding-left:18px;
+    padding-right:18px
+  }
+  .editor-fields{
+    padding:0 18px
+  }
+  .editor-context,.editor-error,.discard-changes{
+    margin-left:18px;
+    margin-right:18px
+  }
+  .record-actions,.result-create-actions{
+    padding-left:18px;
+    padding-right:18px
+  }
+  .record-help,.snapshot-notice{
+    margin-left:18px;
+    margin-right:18px
+  }
+}
 
 *{
   box-sizing:border-box;

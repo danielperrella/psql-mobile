@@ -1,6 +1,6 @@
 <!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Test Psql Mobile</title><div id="app"></div><script type="module">
 // Dev-only fixture: not an entry point of either production bundle. No network or real credentials.
-import {demoSchema,demoResults,demoRelated} from '/src/demo.js';
+import {demoSchema,demoResults,demoRelated,demoRecords} from '/src/demo.js';
 let profiles=[{id:'a'.repeat(64),name:'Neon personale',host:'db.example.com',database:'neondb',user:'demo',config:{connectionString:'postgresql://demo:password@db.example.com/neondb?sslmode=require',ssl:'auto'}},{id:'b'.repeat(64),name:'Database di prova',host:'db.example.com',database:'test',user:'demo',config:{host:'db.example.com',port:5432,database:'test',user:'demo',password:'password',ssl:'require'}}];
 window.PsqlNative={async request(id,path,payload){
   const data=JSON.parse(payload);let result;
@@ -16,7 +16,7 @@ window.PsqlNative={async request(id,path,payload){
       case '/disconnect':result={ok:true};break;
       case '/updates/check':result={available:true,versionName:'1.4.0 (esempio)',size:3340000,notes:'Anteprima del flusso di aggiornamento.'};break;
       case '/updates/install':result={status:'installer'};break;
-      default:throw new Error('Operazione non prevista dalla fixture');
+      default:if(path.startsWith('/records/'))result=await demoRecords(path,data);else throw new Error('Operazione non prevista dalla fixture');
     }
     queueMicrotask(()=>window.__psqlNativeReply(JSON.stringify({id,data:result})));
   }catch(error){queueMicrotask(()=>window.__psqlNativeReply(JSON.stringify({id,error:error.message})));}

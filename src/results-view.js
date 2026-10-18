@@ -1,4 +1,5 @@
 import {icon} from './icons.js';
+import {recordReferences,applyRecordChange} from './record-changes.js';
 
 export const PAGE_SIZE = 20;
 export function displayValue(value) {
@@ -42,10 +43,11 @@ function shortened(text, limit) {
 }
 
 export class ResultsView {
-  constructor(root, onChange = () => {}, onNavigate = () => {}) {
+  constructor(root, onChange = () => {}, onNavigate = () => {}, onRecordAction = () => {}) {
     this.root = root;
     this.onChange = onChange;
     this.onNavigate = onNavigate;
+    this.onRecordAction = onRecordAction;
     this.results = [];
     this.selected = 0;
     this.page = 0;
@@ -56,6 +58,9 @@ export class ResultsView {
       </div>
       <p class="result-limit" hidden>Risultato parziale: alcuni dati sono stati limitati.</p>
       <p class="relation-warning" hidden></p>
+      <div class="result-create-actions"></div>
+      <p class="record-help" hidden>Per modificare o eliminare includi nella query tutta la chiave primaria, senza duplicarla.</p>
+      <p class="snapshot-notice" hidden>Il database è stato modificato. Riesegui una SELECT per aggiornare filtri, ordinamento e campi calcolati.</p>
       <div class="result-pagination" hidden><button id="previousPage" class="secondary" aria-label="Pagina precedente">Precedenti</button><span id="pageRange" aria-live="polite"></span><button id="nextPage" class="secondary" aria-label="Pagina successiva">Successivi</button></div>
       <div class="record-list"></div>`;
     this.search = root.querySelector('#resultSearch');
@@ -84,8 +89,19 @@ export class ResultsView {
     const result = this.results[this.selected];
     return result ? {fields: result.fields, rows: filterRows(result.rows, result.fields, this.search.value)} : {fields: [], rows: []};
   }
+  applyMutation(change){
+    for(const result of this.results)applyRecordChange(result,change);
+    if(change.mode==='create'){
+      const results=[...this.results,change.saved.result];this.setResults(results);this.selected=results.length-1;this.picker.value=String(this.selected);this.search.value='';this.page=0;
+    }this.render();
+  }
   render() {
     const result = this.results[this.selected];
+    this.results.forEach((entry,index)=>{if(this.picker.options[index])this.picker.options[index].textContent=`Risultato ${index+1} · ${entry.fields.length?entry.rows.length+' record':entry.command}`;});
+    const createActions=this.root.querySelector('.result-create-actions');createActions.replaceChildren();
+    for(const target of result?.recordTargets||[]){if(!target.canInsert)continue;const create=node('button',undefined,'secondary create-record');create.innerHTML=icon('plus');create.append(node('span','Nuovo '+target.table));create.onclick=()=>this.onRecordAction('create',target,{});createActions.append(create);}
+    this.root.querySelector('.record-help').hidden=!(result?.recordTargets||[]).some(target=>!target.keyComplete);
+    this.root.querySelector('.snapshot-notice').hidden=!result?.snapshotNotice;
     const data = this.getExport();
     const paged = pageRows(data.rows, this.page);
     this.page = paged.page;
@@ -103,7 +119,7 @@ export class ResultsView {
     this.list.replaceChildren();
     if (!result) this.empty('I tuoi record, leggibili.', 'Esegui una query: ogni riga si aprirà con tutti i campi in verticale.');
     else if (!data.fields.length) this.empty('Comando eseguito', `${result.command} · ${result.rowCount ?? 0} righe interessate.`);
-    else if (!data.rows.length) this.empty(this.search.value ? 'Nessuna corrispondenza' : 'Nessun record restituito', this.search.value ? 'Cambia la ricerca per ritrovare i record caricati.' : 'La query è stata eseguita e non ha restituito righe.');
+    else if (!data.rows.length) this.empty(this.search.value ? 'Nessuna corrispondenza' : 'Nessun record restituito', this.search.value ? 'Cambia la ricerca per ritrovare i record caricati.' : result.snapshotNotice?'Non ci sono più record in questo risultato. Scegli un altro risultato o crea un record.':'La query è stata eseguita e non ha restituito righe.');
     else paged.rows.forEach((row, index) => this.list.append(this.record(row, data.fields, paged.from + index, result)));
     this.onChange({count: data.rows.length, canExport: !!data.fields.length, results: this.results});
   }
@@ -151,6 +167,16 @@ export class ResultsView {
       values.append(pair);
     }
     details.append(summary, values);
+    const references=recordReferences(result,row);
+    if(references.length){
+      const actions=node('div',undefined,'record-actions');
+      for(const reference of references){
+        const suffix=references.length>1?' '+reference.target.table:'';
+        if(reference.target.canUpdate){const edit=node('button',undefined,'primary edit-record');edit.innerHTML=icon('edit');edit.append(node('span','Modifica'+suffix));edit.onclick=()=>this.onRecordAction('update',reference.target,reference.keys);actions.append(edit);}
+        if(reference.target.canInsert){const create=node('button','Nuovo'+suffix,'secondary');create.onclick=()=>this.onRecordAction('create',reference.target,{});actions.append(create);}
+        if(reference.target.canDelete){const remove=node('button',undefined,'secondary delete-record');remove.innerHTML=icon('trash');remove.append(node('span','Elimina'+suffix));remove.onclick=()=>this.onRecordAction('delete',reference.target,reference.keys);actions.append(remove);}
+      }details.insertBefore(actions,values);
+    }
     details.addEventListener('toggle', () => {
       summary.querySelector('.record-open-hint').textContent = details.open ? 'Chiudi record' : `${fields.length} campi · apri record`;
     });

@@ -6,9 +6,10 @@ import {ResultsView} from './results-view.js';
 import {icon} from './icons.js';
 import {ConnectionHome} from './connection-home.js';
 import {AppUpdates} from './app-updates.js';
+import {RecordEditor} from './record-editor.js';
 import {RelatedRecordView} from './related-record.js';
-import {demoResults,demoSchema,demoRelated} from './demo.js';
-const version='1.3.0';
+import {demoResults,demoSchema,demoRelated,demoRecords} from './demo.js';
+const version='1.4.0';
 const nativeAndroid=import.meta.env.MODE==='android';
 const androidApi=nativeAndroid?nativeTransport(window.PsqlNative):null;
 import {EditorView,basicSetup} from 'codemirror';
@@ -54,8 +55,9 @@ const resultsView=new ResultsView($('#results'),({count,canExport,results})=>{
   $('#count').textContent=count;$('#export').disabled=!canExport;
   const loaded=results.reduce((sum,result)=>sum+result.rows.length,0);
   $('#navResultCount').textContent=loaded;$('#navResultCount').hidden=loaded===0;
-},reference=>relatedView.open(reference));
+},reference=>relatedView.open(reference),(mode,target,keys)=>recordEditor.open(mode,target,keys));
 const relatedView=new RelatedRecordView($('#relatedDialog'),reference=>demo?demoRelated(reference):api('/related',{relationId:reference.relationId,values:reference.values}),(row,fields,number,result)=>resultsView.record(row,fields,number,result));
+const recordEditor=new RecordEditor($('#recordEditor'),$('#lookupDialog'),(path,data)=>demo?demoRecords(path,data):api(path,data),change=>{resultsView.applyMutation(change);relatedView.applyMutation(change);feedback(change.mode==='delete'?'Record eliminato.':change.mode==='create'?'Record creato.':'Modifiche salvate.');});
 function controls(){
   $('#run').disabled=busy||(!session&&!demo);$('#disconnect').disabled=busy||(!session&&!demo);
   $('#connectionButton').disabled=busy;$('#refresh').disabled=busy||!session;$('#connectSubmit').disabled=busy;$('#addConnection').disabled=busy;connectionHome.setBusy(busy);
@@ -86,6 +88,7 @@ function renderTree(){
     chevron.innerHTML=icon('chevron');summary.append(label,chevron);details.append(summary);
     const prepare=element('button','Prepara SELECT','prepare-query secondary');
     prepare.onclick=()=>{const quote=v=>'"'+v.replaceAll('"','""')+'"';editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT *\nFROM '+quote(columns[0].table_schema)+'.'+quote(columns[0].table_name)+'\nLIMIT 100;'}});setView('query');feedback('SELECT pronta. Premi Esegui query per leggere i dati.')};details.append(prepare);
+    if(nativeAndroid||demo){const create=element('button','Nuovo record','prepare-query secondary');create.onclick=()=>recordEditor.open('create',{schema:columns[0].table_schema,table:columns[0].table_name});details.append(create)}
     for(const c of columns){const row=element('button',undefined,'column');row.append(element('span',c.column_name),element('small',c.data_type));row.title='Inserisci '+c.column_name+' nella query';row.onclick=()=>{editor.dispatch(editor.state.replaceSelection('"'+c.column_name.replaceAll('"','""')+'"'));setView('query')};details.append(row)}
     tree.append(details);
   }

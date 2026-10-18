@@ -43,6 +43,13 @@ final class RelationCatalog {
         return new ArrayList<>(keys.values());
     }
 
+    static JSONArray forTable(Connection connection,String schema,String table) throws Exception {
+        JSONArray result=new JSONArray();
+        for(JSONObject key:constraints(connection,"sn.nspname=? AND s.relname=?",schema,table))
+            result.put(key.put("fields",key.getJSONArray("sourceColumns")));
+        return result;
+    }
+
     static JSONArray describe(Connection connection, ResultSetMetaData metadata, List<String> labels) throws Exception {
         JSONArray relations=new JSONArray();
         if (!(metadata instanceof PGResultSetMetaData)) return relations;
