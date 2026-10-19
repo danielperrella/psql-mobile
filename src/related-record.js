@@ -16,7 +16,7 @@ export class RelatedRecordView {
       <div class="related-content" aria-live="polite"></div>`;
     dialog.querySelector('.related-close').onclick = () => this.close();
     dialog.querySelector('.related-back').onclick = () => this.back();
-    dialog.addEventListener('close', () => { this.request++; this.stack = [];dialog.querySelector('.related-content').replaceChildren(); });
+    dialog.addEventListener('close', () => { if(dialog.open)return;this.request++; this.stack = [];dialog.querySelector('.related-content').replaceChildren(); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.back(); });
   }
   close() { this.request++; this.stack = [];this.dialog.querySelector('.related-content').replaceChildren();this.dialog.close(); }

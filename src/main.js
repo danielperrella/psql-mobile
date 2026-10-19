@@ -17,7 +17,7 @@ import './favorites.css';
 import {InverseRelationsView} from './inverse-relations.js';
 import './inverse-relations.css';
 import {demoResults,demoSchema,demoRelated,demoRecords,resetDemo,demoInverse} from './demo.js';
-const version='1.7.0';
+const version='1.7.1';
 const nativeAndroid=import.meta.env.MODE==='android';
 const androidApi=nativeAndroid?nativeTransport(window.PsqlNative):null;
 import {EditorView,basicSetup} from 'codemirror';

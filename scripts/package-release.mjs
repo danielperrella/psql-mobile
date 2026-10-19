@@ -9,5 +9,5 @@ fs.writeFileSync('release/psql-mobile.apk',apk);
 fs.writeFileSync('release/update.json',JSON.stringify({versionCode,versionName,
   apkUrl:'https://danielperrella.github.io/psql-mobile/psql-mobile.apk',size:apk.length,
   sha256:crypto.createHash('sha256').update(apk).digest('hex'),
-  notes:'Importazione CA private e certificati client PKCS#12 per connessione, salvataggio cifrato e verifica TLS Android.'},null,2)+'\n');
+  notes:'CA private e certificati client PKCS#12 cifrati per connessione. Corretta la riapertura rapida dei dettagli record.'},null,2)+'\n');
 await import('./verify-release.mjs');

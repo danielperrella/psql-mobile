@@ -90,4 +90,11 @@ public class FeaturesFlowTest {
         }finally{instrumentation.runOnMainSync(activity::finish);}
     }
 
+    @Test public void queuedCloseEventDoesNotClearTheNewlyOpenedRecord()throws Exception{
+        MainActivity activity=start();try{WebView view=web(activity.getWindow().getDecorView());demo(view);
+            js(view,"(()=>{document.querySelector('#results .record-open-hint').click();const d=document.querySelector('#relatedDialog');d.addEventListener('close',()=>{window.rapidRecordReopen=d.open&&d.querySelector('.related-content').textContent.includes('Luca Bianchi')},{once:true});document.querySelector('.related-close').click();document.querySelectorAll('#results .record-open-hint')[1].click()})()");
+            until(view,"window.rapidRecordReopen===true");assertEquals("true",js(view,"Boolean(document.querySelector('#relatedDialog .relation-link'))"));
+        }finally{instrumentation.runOnMainSync(activity::finish);}
+    }
+
 }

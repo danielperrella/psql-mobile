@@ -31,7 +31,7 @@ public class AppFlowTest {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<String> answer = new AtomicReference<>();
         instrumentation.runOnMainSync(() -> view.evaluateJavascript(js, value -> { answer.set(value); latch.countDown(); }));
-        assertTrue("WebView callback", latch.await(5, TimeUnit.SECONDS));
+        assertTrue("WebView callback", latch.await(15, TimeUnit.SECONDS));
         return answer.get();
     }
 

@@ -1,8 +1,8 @@
 {
-  "versionCode": 10,
-  "versionName": "1.7.0",
+  "versionCode": 11,
+  "versionName": "1.7.1",
   "apkUrl": "https://danielperrella.github.io/psql-mobile/psql-mobile.apk",
-  "size": 2451979,
-  "sha256": "fcc6dbefac2259f9ce1c34a1fbb4e5dd8bfe76d05b77f8be0b0c62b5b70eca23",
-  "notes": "Importazione CA private e certificati client PKCS#12 per connessione, salvataggio cifrato e verifica TLS Android."
+  "size": 2451983,
+  "sha256": "91afdcd10d7e8be0d6714e3c14c8aacf38487de1cc7256603b4729fe3175a220",
+  "notes": "CA private e certificati client PKCS#12 cifrati per connessione. Corretta la riapertura rapida dei dettagli record."
 }
