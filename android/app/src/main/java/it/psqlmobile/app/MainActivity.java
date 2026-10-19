@@ -19,6 +19,7 @@ public final class MainActivity extends Activity {
     private PostgresBridge bridge;
     private AppUpdater updater;
     private String exportId, exportText;
+    private String certificateId,certificateKind;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -98,8 +99,39 @@ public final class MainActivity extends Activity {
         });
     }
 
+    void importCertificate(String id,String kind){
+        if(!kind.equals("ca")&&!kind.equals("client"))throw new IllegalArgumentException("Tipo di certificato non valido.");
+        runOnUiThread(()->{
+            if(certificateId!=null){bridge.respond(id,null,"Selezione certificato già in corso.");return;}
+            certificateId=id;certificateKind=kind;
+            Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+            try{startActivityForResult(intent,11);}catch(Exception e){certificateId=null;certificateKind=null;bridge.respond(id,null,"Nessuna app disponibile per selezionare il certificato.");}
+        });
+    }
+
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if(request==11&&certificateId!=null){
+            String id=certificateId,kind=certificateKind;certificateId=null;certificateKind=null;
+            if(result!=RESULT_OK||data==null||data.getData()==null){bridge.respond(id,null,"Importazione annullata.");return;}
+            Uri uri=data.getData();
+            new Thread(()->{
+                try(java.io.InputStream input=getContentResolver().openInputStream(uri);java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream()){
+                    if(input==null)throw new java.io.IOException();byte[] buffer=new byte[8192];int count;
+                    while((count=input.read(buffer))!=-1){if(bytes.size()+count>TlsCertificates.MAX_BYTES)throw new IllegalArgumentException("File troppo grande: massimo 512 KiB.");bytes.write(buffer,0,count);}
+                    String encoded=java.util.Base64.getEncoder().encodeToString(bytes.toByteArray());String name=kind.equals("ca")?"Certificato server":"Certificato client";
+                    try(android.database.Cursor cursor=getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null)){
+                        if(cursor!=null&&cursor.moveToFirst()&&!cursor.isNull(0))name=cursor.getString(0);
+                    }catch(Exception ignored){}
+                    name=name.substring(0,Math.min(name.length(),120));
+                    org.json.JSONObject response=new org.json.JSONObject().put("data",encoded).put("name",name);
+                    if(kind.equals("ca"))response.put("info",TlsCertificates.inspect(kind,encoded,""));
+                    else if(bytes.size()==0)throw new IllegalArgumentException("Il file selezionato è vuoto.");
+                    bridge.respond(id,response,null);
+                }catch(IllegalArgumentException e){bridge.respond(id,null,e.getMessage());}
+                catch(Exception e){bridge.respond(id,null,"Impossibile leggere il file certificato selezionato.");}
+            },"certificate-import").start();return;
+        }
         if (request != 10 || exportId == null) return;
         String id = exportId, text = exportText;
         exportId = null; exportText = null;
@@ -115,6 +147,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         exportText = null;
+        certificateId=null;certificateKind=null;
         if (bridge != null) bridge.close();
         if (webView != null) { webView.removeJavascriptInterface("PsqlNative"); webView.destroy(); }
         super.onDestroy();

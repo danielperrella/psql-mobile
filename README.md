@@ -17,7 +17,7 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 ## Connessione e funzioni
 
 - URI `postgres://` e `postgresql://` oppure comando completo `psql 'postgresql://…'`: prefisso e virgolette esterne vengono riconosciuti automaticamente. Il comando non viene eseguito. Il campo è visibile e multilinea, con esempi generici e validazione durante l’inserimento per virgolette, prefisso, spazi e percent-encoding. Sono supportati percent-encoding di utente/password/database e IPv6; in alternativa campi separati.
-- Parametri URI supportati: `user`, `password`, `sslmode`, `channel_binding`, `application_name`. Parametri sconosciuti sono rifiutati esplicitamente; socket Unix, host multipli, certificati client e CA private importate non sono ancora supportati.
+- Parametri URI supportati: `user`, `password`, `sslmode`, `channel_binding`, `application_name`. Parametri sconosciuti sono rifiutati esplicitamente; socket Unix e host multipli non sono ancora supportati. I file TLS si importano dal modulo della connessione; i percorsi sslrootcert/sslcert/sslkey nella URI non vengono letti.
 - Senza `sslmode` viene usato **verify-full**, con CA di sistema Android e verifica del nome host. La scelta TLS esplicita nel modulo prevale sulla URI. `require` cifra ma non verifica il certificato; `prefer`/`allow` seguono il comportamento pgJDBC e possono usare connessioni non cifrate. `disable` va scelto per un database senza TLS su una rete fidata.
 - Autenticazione PostgreSQL con password, MD5 e SCRAM-SHA-256 tramite pgJDBC. Kerberos/GSS/SSPI non sono supportati su Android.
 - Interfaccia mobile con tre viste: **Tabelle, SQL e Risultati**, raggiungibili dalla barra inferiore. Nessuna griglia da scorrere in orizzontale: la scritta sotto ogni record apre un dettaglio in modale con tutti i campi in verticale, anche per testi, JSON e nomi di colonna lunghi.
@@ -30,6 +30,16 @@ Il database deve essere raggiungibile dal telefono: Internet, LAN oppure VPN. `l
 - Dopo il salvataggio vengono aggiornati i campi dei record caricati che corrispondono alla chiave primaria; un nuovo record viene mostrato in un risultato separato. Le query originali non vengono rieseguite automaticamente: per ricalcolare join, filtri, ordinamento o espressioni usa una SELECT. Le transazioni SQL già aperte devono essere chiuse prima di utilizzare il modulo.
 - Timeout connessione 10 s, query 15 s, socket 20 s. Sessione inattiva chiusa dopo 30 minuti e alla distruzione dell'Activity. La rotazione ricrea la sessione: è necessario riconnettersi.
 - Ogni risultato visualizza al massimo 1.000 righe; le celle oltre 64 Ki caratteri e i risultati oltre 2 milioni di caratteri sono troncati e segnalati. Lo schema è limitato a 10.000 colonne. Usa `LIMIT` per query molto grandi. I valori sono restituiti come testo per conservare precisione numerica e date.
+
+## Certificati TLS nella 1.7.0
+
+Nel modulo di connessione Android trovi **Certificati TLS**. Importa una CA privata o un certificato server X.509 in `.crt`, `.cer` o `.pem` (PEM o DER; fino a 16 certificati nello stesso file), ed eventualmente un file client PKCS#12 `.p12`/`.pfx` con un solo certificato e la relativa chiave privata. Ogni file può essere grande fino a 512 KiB. Inserisci la password PKCS#12, anche vuota se il file non è protetto, e usa **Verifica certificato client**. L’interfaccia mostra soggetto, scadenza e impronta SHA-256.
+
+L’importazione seleziona **Verifica certificato e host**. I certificati importati richiedono `verify-full` o `verify-ca`: non vengono usati con modalità che permettono connessioni prive di verifica. Una CA importata sostituisce le CA di sistema soltanto per quella connessione; senza CA personalizzata restano le CA di sistema Android. La verifica del nome server usa il verificatore Android, senza dipendenze JNDI. I certificati scaduti o non ancora validi vengono rifiutati.
+
+Se salvi la connessione, anche CA, file client e password vengono cifrati con il profilo tramite Android Keystore. Puoi sostituire o rimuovere i file modificando la connessione, poi riconnettendo con il salvataggio attivo. Non vengono installati certificati globali, né conservati collegamenti permanenti ai file originali. Se non salvi la connessione, i materiali restano solo in memoria. L’APK non importa automaticamente le CA installate manualmente sul telefono.
+
+Chi possiede certificato e chiave client separati può creare il contenitore con `openssl pkcs12 -export -in client.crt -inkey client.key -certfile ca.crt -out client.p12`. La chiave PEM separata non si importa direttamente nell’app.
 
 ## Filtri nella 1.6.0
 

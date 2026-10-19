@@ -108,6 +108,18 @@ public final class ConnectionOptions {
         p.setProperty("sslmode", tls);
         // Use Android's system CA store with certificate and hostname verification.
         if (tls.startsWith("verify")) p.setProperty("sslfactory", "org.postgresql.ssl.DefaultJavaSSLFactory");
+        if (tls.equals("verify-full")) p.setProperty("sslhostnameverifier","it.psqlmobile.app.AndroidHostnameVerifier");
+        JSONObject certificates=input.optJSONObject("tlsCertificates");
+        if(certificates!=null&&(certificates.has("ca")||certificates.has("client"))){
+            if(!tls.startsWith("verify"))throw new IllegalArgumentException("Con certificati importati scegli TLS: Verifica certificato e host.");
+            for(String kind:new String[]{"ca","client"})if(certificates.has(kind)){
+                JSONObject material=certificates.optJSONObject(kind);if(material==null)throw new IllegalArgumentException("Certificato importato non valido.");
+                String encoded=material.optString("data");TlsCertificates.inspect(kind,encoded,certificates.optString("password"));
+                p.setProperty("psql."+kind,encoded);
+            }
+            if(certificates.has("client"))p.setProperty("psql.clientPassword",certificates.optString("password"));
+            p.setProperty("sslfactory","it.psqlmobile.app.ConnectionSslFactory");
+        }
         p.setProperty("gssEncMode", "disable"); // Android has no JGSS/Kerberos runtime.
         p.setProperty("jaasLogin", "false");
         p.setProperty("channelBinding", channelBinding);

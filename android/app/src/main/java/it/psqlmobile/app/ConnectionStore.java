@@ -75,6 +75,10 @@ final class ConnectionStore {
         for(String field:new String[]{"connectionString","host","port","database","user","password","ssl"})
             if(input.has(field))config.put(field,input.get(field));
         config.put("readOnly",input.optBoolean("readOnly",false));
+        JSONObject tls=input.optJSONObject("tlsCertificates");
+        if(tls!=null){JSONObject clean=new JSONObject();for(String kind:new String[]{"ca","client"})if(tls.has(kind)){
+            JSONObject material=tls.getJSONObject(kind);clean.put(kind,new JSONObject().put("data",material.getString("data")).put("name",material.optString("name",kind).substring(0,Math.min(120,material.optString("name",kind).length()))));
+        }if(clean.has("client"))clean.put("password",tls.optString("password"));if(clean.length()>0)config.put("tlsCertificates",clean);}
         if(config.has("connectionString"))config.put("connectionString",ConnectionOptions.normalize(config.getString("connectionString")));
         JSONObject profile=new JSONObject().put("id",id).put("name",name).put("host",uri.getHost())
             .put("database",database).put("user",user).put("config",config);

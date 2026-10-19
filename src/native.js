@@ -16,7 +16,7 @@ export function nativeTransport(bridge, target = globalThis) {
     const timer = setTimeout(() => {
       pending.delete(id);
       reject(new Error('Operazione scaduta. Verifica la rete e riconnettiti.'));
-    }, path === '/export' ? 300000 : path === '/updates/install' ? 180000 : 45000);
+    }, ['/export','/certificates/import'].includes(path) ? 300000 : path === '/updates/install' ? 180000 : 45000);
     pending.set(id, { resolve, reject, timer });
     try { if(!bridge)throw new Error('Le connessioni salvate sono disponibili nell’app Android.');bridge.request(id, path, JSON.stringify(data)); }
     catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }

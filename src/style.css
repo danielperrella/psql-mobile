@@ -1503,3 +1503,8 @@ dialog{
 }
 
 }
+
+.connection-certificates{margin:24px 0;padding:18px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.connection-certificates h3{margin:0 0 10px;font-size:18px}.connection-certificates h4{font-size:14px;margin:18px 0 6px}
+.connection-certificates .certificate-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}.certificate-name,.certificate-subject,.certificate-fingerprint{display:block;overflow-wrap:anywhere;max-width:100%}.certificate-fingerprint{font-size:11px;line-height:1.6;color:var(--muted)}
+.connection-certificates [hidden]{display:none!important}.connection-certificates input{max-width:100%}

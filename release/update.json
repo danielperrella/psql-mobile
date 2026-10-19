@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "1.6.0",
+  "versionCode": 10,
+  "versionName": "1.7.0",
   "apkUrl": "https://danielperrella.github.io/psql-mobile/psql-mobile.apk",
-  "size": 2445727,
-  "sha256": "be509a9f537e933af45f50f1e7024f5d2862c2fdff4d2246d443663ca4b620d9",
-  "notes": "Filtri per tipo di campo, ricerca delle relazioni per nome, intervalli e riepilogo dei filtri applicati."
+  "size": 2451979,
+  "sha256": "fcc6dbefac2259f9ce1c34a1fbb4e5dd8bfe76d05b77f8be0b0c62b5b70eca23",
+  "notes": "Importazione CA private e certificati client PKCS#12 per connessione, salvataggio cifrato e verifica TLS Android."
 }

@@ -11,6 +11,7 @@ android/**/build/
 *.apk
 !release/psql-mobile.apk
 android/app/src/androidTest/assets/*.apk
+android/app/src/androidTest/assets/tls/
 *.jks
 *.keystore
 *.idsig

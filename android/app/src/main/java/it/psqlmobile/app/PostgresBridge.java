@@ -45,6 +45,8 @@ public final class PostgresBridge implements AutoCloseable {
                     switch (path) {
                         case "/updates/check": result=updater.check(); break;
                         case "/updates/install": result=updater.downloadAndInstall(); break;
+                        case "/certificates/import": activity.importCertificate(id,data.getString("kind")); return;
+                        case "/certificates/inspect": result=TlsCertificates.inspect(data.getString("kind"),data.getString("data"),data.optString("password")); break;
                         case "/connect": {
                             JSONObject profile=data.has("profileId")?connections.read(data.getString("profileId")):null;
                             JSONObject config=profile==null?data:profile.getJSONObject("config");

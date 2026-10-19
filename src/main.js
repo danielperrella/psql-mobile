@@ -6,6 +6,7 @@ import {ResultsView} from './results-view.js';
 import {icon} from './icons.js';
 import {ConnectionHome} from './connection-home.js';
 import {AppUpdates} from './app-updates.js';
+import {ConnectionCertificates} from './connection-certificates.js';
 import {RecordEditor} from './record-editor.js';
 import {RelatedRecordView} from './related-record.js';
 import {recordReferences} from './record-changes.js';
@@ -16,7 +17,7 @@ import './favorites.css';
 import {InverseRelationsView} from './inverse-relations.js';
 import './inverse-relations.css';
 import {demoResults,demoSchema,demoRelated,demoRecords,resetDemo,demoInverse} from './demo.js';
-const version='1.6.0';
+const version='1.7.0';
 const nativeAndroid=import.meta.env.MODE==='android';
 const androidApi=nativeAndroid?nativeTransport(window.PsqlNative):null;
 import {EditorView,basicSetup} from 'codemirror';
@@ -26,6 +27,8 @@ import {Compartment} from '@codemirror/state';
 import {csv} from '../server/core.js';
 const $=s=>document.querySelector(s);let session,conn,schema=[],installPrompt;const dialect=new Compartment();
 $('#app').innerHTML=appShell(nativeAndroid,version);
+const connectionCertificates=nativeAndroid?new ConnectionCertificates($('#connectionCertificates'),androidApi,$('[name=ssl]')):null;
+$('#dialog').addEventListener('close',()=>{if(!$('#dialog').open)connectionCertificates?.reset();});
 const editor=new EditorView({doc:'SELECT 1 AS risultato;',extensions:[basicSetup,oneDark,dialect.of(sql({dialect:PostgreSQL})),EditorView.lineWrapping,EditorView.domEventHandlers({keydown(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run();return true}}})],parent:$('#editor')});
 let activeView='query',homeVisible=true,currentProfileId=null,editingProfileId=null,currentReadOnly=false,demo=false,busy=false;
 const connectionHome=new ConnectionHome($('#connectionHome'),{connect:profile=>connect({profileId:profile.id}),edit:editConnection,remove:removeConnection});
@@ -39,11 +42,11 @@ function showHome(show=true){
   if(show){relatedView.close();refreshConnections()}else{setView(activeView,false);editor.requestMeasure()}window.scrollTo({top:0,behavior:'auto'});
 }
 function newConnection(){
-  if(busy)return;editingProfileId=null;$('#connectForm').reset();setMode('uri');validateUriField();$('#connectError').textContent='';$('#dialog .dialog-title h2').textContent='Nuova connessione';$('#dialog').showModal();
+  if(busy)return;editingProfileId=null;connectionCertificates?.reset();$('#connectForm').reset();setMode('uri');validateUriField();$('#connectError').textContent='';$('#dialog .dialog-title h2').textContent='Nuova connessione';$('#dialog').showModal();
 }
 async function editConnection(profile){
   if(busy)return;
-  try{const saved=await androidApi('/connections/read',{profileId:profile.id});newConnection();editingProfileId=profile.id;const form=$('#connectForm');form.elements.name.value=saved.name;setMode(saved.config.connectionString?'uri':'fields');for(const [key,value]of Object.entries(saved.config))if(form.elements[key]){if(form.elements[key].type==='checkbox')form.elements[key].checked=!!value;else form.elements[key].value=value;}validateUriField();$('#dialog .dialog-title h2').textContent='Modifica connessione'}catch(error){connectionHome.error(error.message)}
+  try{const saved=await androidApi('/connections/read',{profileId:profile.id});newConnection();editingProfileId=profile.id;const form=$('#connectForm');form.elements.name.value=saved.name;setMode(saved.config.connectionString?'uri':'fields');for(const [key,value]of Object.entries(saved.config))if(form.elements[key]){if(form.elements[key].type==='checkbox')form.elements[key].checked=!!value;else form.elements[key].value=value;}connectionCertificates?.load(saved.config.tlsCertificates);validateUriField();$('#dialog .dialog-title h2').textContent='Modifica connessione'}catch(error){connectionHome.error(error.message)}
 }
 async function removeConnection(profile){
   try{await androidApi('/connections/remove',{profileId:profile.id});if(currentProfileId===profile.id)currentProfileId=null;await refreshConnections()}catch(error){connectionHome.error(error.message)}
@@ -175,7 +178,7 @@ async function connect(config,gateway){
     if(previous.session){const current={conn,session};conn=previous.conn;session=previous.session;await api('/disconnect').catch(()=>{});({conn,session}=current)}
     schema=nextSchema;demo=false;currentProfileId=response.profileId||null;favoriteEntries=[];currentReadOnly=!!response.readOnly;resultsView.setReadOnly(currentReadOnly);$('#readOnlyStatus').hidden=!currentReadOnly;updateSchema();refreshFavorites();
     $('#status').textContent='Connesso'+(response.name?' · '+response.name:'');$('#status').classList.add('connected');
-    $('#dialog').close();$('#connectForm').reset();editingProfileId=null;validateUriField();renderResults([]);
+    $('#dialog').close();connectionCertificates?.reset();$('#connectForm').reset();editingProfileId=null;validateUriField();renderResults([]);
     setView('schema');showHome(false);connectionState();
     feedback(response.saveError||'Connessione attiva. Scegli una tabella o scrivi una query.',!!response.saveError);
     refreshConnections();
@@ -189,6 +192,7 @@ $('#connectForm').onsubmit=async event=>{
   if(validated&&!validated.valid){uriInput.focus();return}
   const data=Object.fromEntries(new FormData(event.target));
   const config=mode==='uri'?{connectionString:validated.uri,ssl:data.ssl}:Object.fromEntries(['host','port','database','user','password','ssl'].map(key=>[key,data[key]]));
+  if(nativeAndroid){try{config.tlsCertificates=connectionCertificates.config();}catch(error){$('#connectError').textContent=error.message;return;}}
   if(nativeAndroid)Object.assign(config,{readOnly:event.target.elements.readOnly.checked,name:data.name,saveConnection:event.target.elements.saveConnection.checked,replaceProfileId:editingProfileId||''});
   let gateway;
   if(!nativeAndroid){try{const url=new URL(data.gateway);if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)))throw new Error('Usa HTTPS per il gateway remoto');gateway={gateway:data.gateway.replace(/\/$/,''),token:data.token}}catch(error){$('#connectError').textContent=error.message;return}}
